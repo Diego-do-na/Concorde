@@ -1,8 +1,0 @@
-#!/usr/bin/env bash
-# agentB — identical stand-in agent to agentA, just under a different name
-# so fleet.sh's per-agent owner suffix (<owner>-<agent>) gives you two
-# distinct, non-colliding Cauce identities when running 2 parallel
-# autopilot loops on the same machine (fleet.sh <name> agentA agentB).
-# See agentA for what it actually does.
-set -euo pipefail
-exec "$(dirname "$0")/agentA" "$@"
