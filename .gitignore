@@ -1,0 +1,27 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+boss-dashboard/_mirror/
+.agents/
+SETUP.md
+.env
+
+# CONCORDE — altur-challenge dataset (§13.4): never committed, never shipped.
+audio/
+turns/
+manifest.csv
+*.wav
+ml/eda/*.png
+
+# Rust
+target/
+Cargo.lock
+
+# Node / React console
+node_modules/
+console/dist/
+console/build/
+
+# ONNX artifacts are versioned deliberately in artifacts/ (ADR-004) — do not
+# blanket-ignore *.onnx here.

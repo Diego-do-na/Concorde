@@ -1,0 +1,452 @@
+# tasks.yaml — the single source of truth for Cauce's task board.
+# NEVER edit this file by hand outside of scripts/*.py.
+#
+# Seeded from CONCORDE spec v1.0 §13.2 (docs/CONCORDE_Especificacion_Tecnica_v1.0.pdf).
+# `owner` here is the RACI-designated person from §13.1/§13.2 (who *should*
+# claim this task) — claim_task.py will overwrite it with whoever actually
+# runs `--owner <name>` when the task is claimed; that's expected, not a bug.
+# `status` starts at "todo" for all 23 tasks: nobody has claimed anything yet.
+#
+# Known scope notes (not conflicts, by construction — see AGENTS.md):
+#   - T001 and T023 both include README.md, but T023 depends transitively on
+#     T001 (T023 -> T022 -> T014 -> T010 -> T007 -> T006 -> T001), so T001 is
+#     always status=done long before T023 becomes eligible.
+#   - T003 (deploy/) and T020 (deploy/sql/) overlap by prefix, but T020
+#     depends on T015 (itself far downstream of T001), so T003 — a small F0
+#     task — is expected to be done well before T020 is claimable.
+tasks:
+- id: T001
+  title: Repo skeleton, workspace, CI build, README stub
+  description: 'Create the Cargo workspace layout, GitHub Actions CI build, and
+    a README.md stub for later expansion by T023. No business logic yet — this
+    just gives later tasks something to build on.
+
+    '
+  scope:
+  - Cargo.toml
+  - .github/
+  - README.md
+  depends_on: []
+  suggested_model: cursor
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T002
+  title: 'EDA: class balance, overlap density, duration/label correlation, manifest hash'
+  description: 'Run the mandatory EDA gates from spec §10.1: confirm exact class
+    balance per split (apply class_weight and report AUC/EER if imbalance exceeds
+    60/40); measure overlap/interruption event density per call (gate: if <40%
+    of calls have an overlap event, flag the F-07..F-13 family as weakened per
+    R-04); verify call duration does not correlate with the label (drop duration
+    as a feature and document it if it does); compute and record the dataset
+    manifest hash for NFR-009 traceability.
+
+    '
+  scope:
+  - ml/eda/
+  depends_on: []
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T003
+  title: Vultr instance + Caddy + systemd unit + deploy script
+  description: 'Provision the Vultr instance and write deploy/ tooling: Caddyfile
+    serving HTTP (:80) and HTTPS (:443) with automatic TLS (ADR-010), a systemd
+    unit with Restart=always for the Rust binary, and a deploy script. This is
+    the F1 exit-critical deployment path — must be reachable from the public
+    internet before a model exists.
+
+    '
+  scope:
+  - deploy/
+  depends_on: []
+  suggested_model: cursor
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T004
+  title: Design tokens + app shell + routing
+  description: 'Implement the Concorde Console design system tokens from spec
+    §11.1 (dark-mode-first, three semantic states only, tabular figures, max
+    4 type sizes, high density) and the app shell/routing skeleton the three
+    views will mount into.
+
+    '
+  scope:
+  - console/src/theme/
+  - console/src/app/
+  depends_on: []
+  suggested_model: cursor
+  status: todo
+  owner: Néstor
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T005
+  title: 'Axum server, defensive request parser (FR-003), fail-safe handler (FR-008)'
+  description: 'Stand up the Axum HTTP server and implement the defensive
+    multi-shape request parser (ADR-009): raw base64 body, JSON with any of
+    audio/audio_base64/wav/data/file/clip/content, multipart/form-data, and raw
+    binary WAV, tolerating data-URI prefixes and unpadded base64. Wire the
+    fail-safe handler boundary so any panic converts to the fallback verdict
+    instead of a 5xx (ADR-006, NFR-005).
+
+    '
+  scope:
+  - api/src/http/
+  depends_on:
+  - T001
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T006
+  title: WAV decode + channel split + input validation
+  description: 'Decode the stereo 8kHz 16-bit PCM WAV via hound, split channel 0
+    (caller) from channel 1 (agent), and validate format (sample rate, bit
+    depth, channel count) before anything downstream touches the audio.
+
+    '
+  scope:
+  - api/src/audio/decode.rs
+  depends_on:
+  - T001
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T007
+  title: VAD in Rust producing turns.json-shaped output
+  description: 'Implement per-channel voice activity detection in Rust (RMS
+    energy + adaptive threshold + hysteresis + minimum-duration smoothing),
+    emitting output in the same structure as turns/<id>.json. This is
+    ADR-003 — accepted and BLOCKING: eliminates the training/serving skew
+    that is the project''s #1 silent risk (R-01).
+
+    '
+  scope:
+  - api/src/audio/vad.rs
+  depends_on:
+  - T006
+  suggested_model: claude-opus
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T008
+  title: VAD agreement report vs provided turns (FR-004 gate)
+  description: 'Compare the Rust VAD''s output (T007) against the provided
+    practice turns/*.json on ≥30 calls. Gate: per-frame F1 ≥ 0.85 and
+    turn-count ratio within ±20%. This must pass before the model is trained
+    on VAD-derived features (FR-004).
+
+    '
+  scope:
+  - ml/validation/vad_agreement/
+  depends_on:
+  - T007
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T009
+  title: 'Python reference feature extractor, F-01…F-22'
+  description: 'Implement the Python reference implementation of the behavioral
+    feature catalog (spec §9), features F-01 through F-22 in the exact order
+    defined by the fc-1 contract. This is the single source of truth the Rust
+    extractor (T010) must match via golden-vector parity (FR-005).
+
+    '
+  scope:
+  - ml/features/
+  depends_on:
+  - T002
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T010
+  title: 'Rust feature extractor, F-01…F-22, contract fc-1'
+  description: 'Implement the production Rust feature extractor mirroring
+    ml/features/ (T009) exactly, in fc-1 order. Any divergence from the Python
+    reference is a defect even if both "work" (§7.2 guiding principle).
+
+    '
+  scope:
+  - api/src/features/
+  depends_on:
+  - T007
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T011
+  title: Golden-vector parity test Python↔Rust (FR-005)
+  description: 'Write the parity test suite that runs both extractors (T009,
+    T010) on a fixed set of ≥10 calls and asserts identical feature vectors
+    within tolerance 1e-6. This is the test that proves fc-1 has not silently
+    drifted between implementations.
+
+    '
+  scope:
+  - ml/validation/parity/
+  depends_on:
+  - T009
+  - T010
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T012
+  title: 'LightGBM training, grouped CV, calibration, metrics report'
+  description: 'Train LightGBM (depth ≤4, high min_data_in_leaf, deliberately
+    regularized per ADR-002) using speaker-grouped cross-validation inside
+    train only (ADR-012 — val never participates in selection). Calibrate via
+    Platt/isotonic scaling on val. Report ROC-AUC (target ≥0.90), EER, Brier
+    score (target ≤0.12), reliability curve, confusion matrix, and error
+    breakdown by call duration. Apply the anti-self-deception rule from §10.2
+    if val AUC comes back suspiciously high.
+
+    '
+  scope:
+  - ml/train/
+  depends_on:
+  - T009
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T013
+  title: ONNX export + artifact versioning
+  description: 'Export the trained model + calibrator (T012) to a single
+    versioned ONNX artifact embedding (or accompanied by) the fc-1
+    feature-contract version string, per ADR-004.
+
+    '
+  scope:
+  - ml/export/
+  - artifacts/
+  depends_on:
+  - T012
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T014
+  title: 'ort integration, model load at boot, /detect wired end-to-end'
+  description: 'Load the versioned ONNX artifact (T013) once at process start
+    via ort; abort startup on feature-contract mismatch (FR-006). Wire the
+    full pipeline (parser → decode → VAD → features → inference) into
+    /detect end-to-end.
+
+    '
+  scope:
+  - api/src/inference/
+  depends_on:
+  - T010
+  - T013
+  suggested_model: claude-opus
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T015
+  title: '/analyze superset serializer + /health + /metrics'
+  description: 'Implement POST /analyze returning the full explanatory
+    superset (verdict, per-signal sub-scores, feature values, top
+    contributing features, turns, overlap events, natural-language rationale
+    — §8.2), GET /health (liveness, model_version, git SHA, uptime, deps
+    status), and GET /metrics (request/error counts, latency percentiles).
+
+    '
+  scope:
+  - api/src/routes/
+  depends_on:
+  - T014
+  suggested_model: cursor
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T016
+  title: Live monitor view
+  description: 'Build the dense live-monitor table (processed calls: id,
+    duration, verdict, confidence, latency, timestamp) plus the service-health
+    header (model version, current p95, dependency degradation), with
+    WebSocket updates and silent fallback to polling (spec §11.2 View 1).
+
+    '
+  scope:
+  - console/src/views/live/
+  depends_on:
+  - T004
+  - T015
+  suggested_model: cursor
+  status: todo
+  owner: Néstor
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T017
+  title: 'Call detail view: dual waveform, event markers, confidence trace, factors'
+  description: 'Build the call-detail view (spec §11.2 View 2 — the screen
+    that wins judging): both channels'' waveforms stacked and time-synced with
+    markers at every overlap/interruption/silence event, a confidence-over-time
+    trace aligned to the waveform, per-signal breakdown with explicit
+    availability, top-factors panel, and natural-language rationale — all
+    driven by /analyze.
+
+    '
+  scope:
+  - console/src/views/detail/
+  depends_on:
+  - T004
+  - T015
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Néstor
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T018
+  title: Executive view + business case with visible assumptions
+  description: 'Build the executive view (spec §11.2 View 3): aggregate
+    operational metrics and a business case scaled to Altur''s real volume
+    (150M+ calls/month), with every assumption visible on screen and labelled
+    as an estimate.
+
+    '
+  scope:
+  - console/src/views/exec/
+  depends_on:
+  - T004
+  suggested_model: cursor
+  status: todo
+  owner: Néstor
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T019
+  title: 'Semantic probe: ASR + Gemini, hard timeout, degradation path (F-23)'
+  description: 'Implement the semantic sub-signal (F-23): ASR transcription
+    plus a Gemini Flash call assessing invention of non-existent information
+    and template-like answering, under a hard timeout
+    (CONCORDE_SEMANTIC_TIMEOUT_MS, default 1500ms). On timeout or API failure,
+    mark semantic_available=false internally and continue with the
+    behavioral-only verdict — the semantic layer is never on the critical
+    path (ADR-008).
+
+    '
+  scope:
+  - api/src/semantic/
+  - ml/semantic/
+  depends_on:
+  - T014
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Diego
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T020
+  title: Tiger Data schema, event writer, historical aggregates
+  description: 'Implement the Tiger Data (PostgreSQL) schema for
+    detection_events, a non-blocking event writer, and continuous aggregates
+    for the historical dashboard view (ADR-007, FR-015). Must never block or
+    degrade /detect if Tiger Data is unavailable.
+
+    '
+  scope:
+  - api/src/storage/
+  - deploy/sql/
+  depends_on:
+  - T015
+  suggested_model: cursor
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T021
+  title: 'Red-team clip set: ElevenLabs synthetic + own human recordings'
+  description: 'Generate a set of ElevenLabs synthetic clips (an engine
+    absent from the dataset) and record matching human clips, for the
+    robustness demo and evaluation probe (spec §10.2, §11.3). No dataset
+    audio is included.
+
+    '
+  scope:
+  - eval/redteam/
+  depends_on:
+  - T002
+  suggested_model: cursor
+  status: todo
+  owner: Néstor
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T022
+  title: Fault-injection + soak + concurrency test suite (NFR-001/004/005/006)
+  description: 'Build the test suite proving the NFRs with evidence, not
+    opinion: fault injection (truncated WAV, zero bytes, mono file, 44.1kHz
+    file, non-audio blob, oversized blob — all must return 200, never 5xx),
+    concurrency test (≥8 concurrent requests within p99 budget), and a
+    30-minute soak test at 4 req/s (≤1.5GB resident memory).
+
+    '
+  scope:
+  - api/tests/
+  depends_on:
+  - T014
+  suggested_model: claude-sonnet
+  status: todo
+  owner: Paul
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T023
+  title: 'Final README: approach, signals, measured results, run instructions'
+  description: 'Write the final English README.md: approach, signals used,
+    measured results (val metrics from T012, VAD agreement from T008, parity
+    report from T011), how to run the system, and the dataset-handling
+    compliance statement (§13.4). Reviewed and signed off by all three
+    members before code freeze (FR-016).
+
+    '
+  scope:
+  - README.md
+  depends_on:
+  - T012
+  - T022
+  suggested_model: claude-sonnet
+  status: todo
+  owner: All
+  branch: null
+  claimed_at: null
+  done_at: null

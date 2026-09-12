@@ -1,0 +1,217 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cauce — Boss Dashboard</title>
+<style>
+  /* ---- shared Cauce design tokens (kept identical in model-requester) ---- */
+  :root {
+    --bg: #0b0d10;
+    --surface: #14171b;
+    --surface-2: #1b1f24;
+    --border: rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.16);
+    --text: #e8eaed;
+    --text-dim: #9aa1ab;
+    --text-faint: #666d78;
+    --accent: #4d8dff;
+    --accent-dim: rgba(77,141,255,0.14);
+    --accent-strong: #6ea1ff;
+    --radius: 10px;
+    --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Helvetica, Arial, sans-serif;
+    --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .page { max-width: 1180px; margin: 0 auto; padding: 32px 24px 64px; }
+
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 24px; }
+  header h1 { font-size: 18px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  header .subtitle { color: var(--text-faint); font-size: 12.5px; }
+  .status-dot { display:inline-block; width:6px; height:6px; border-radius:50%; margin-right:6px; background: var(--text-faint); }
+  .status-dot.live { background: var(--accent); box-shadow: 0 0 0 3px var(--accent-dim); }
+
+  /* progress bar */
+  .progress-wrap { margin-bottom: 28px; }
+  .progress-meta { display:flex; justify-content:space-between; font-size:12.5px; color: var(--text-dim); margin-bottom: 6px; }
+  .progress-track { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; border: 1px solid var(--border); }
+  .progress-fill { height: 100%; background: var(--accent); border-radius: 999px; transition: width 420ms cubic-bezier(0.16,1,0.3,1); }
+
+  .board { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 32px; }
+  .column { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px; min-height: 120px; }
+  .column-head { display:flex; align-items:center; justify-content:space-between; margin-bottom: 12px; padding: 0 2px; }
+  .column-head h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin: 0; }
+  .column-count { font-size: 11px; color: var(--text-faint); background: var(--surface-2); border-radius: 999px; padding: 1px 8px; }
+
+  .card { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .card:last-child { margin-bottom: 0; }
+  .card.claimed { border-left: 2px solid var(--accent); }
+  .card.done { opacity: 0.6; }
+  .card.ready { border-color: var(--border-strong); }
+  .card-title { font-size: 13px; font-weight: 500; margin-bottom: 4px; }
+  .card-meta { font-size: 11.5px; color: var(--text-faint); display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .pill { font-size: 10.5px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-dim); }
+  .pill.model { font-family: var(--font-mono); }
+  .pill.ready { color: var(--accent-strong); border-color: var(--accent-dim); background: var(--accent-dim); }
+  .empty-hint { color: var(--text-faint); font-size: 12px; padding: 8px 2px; }
+
+  .activity { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; }
+  .activity h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-dim); font-weight: 600; margin: 0 0 12px; }
+  .activity-row { display: flex; justify-content: space-between; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+  .activity-row:last-child { border-bottom: none; }
+  .activity-branch { font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
+  .activity-when { color: var(--text-faint); font-size: 12px; white-space: nowrap; }
+  .owner-tag { color: var(--text-dim); }
+
+  .error-banner { background: rgba(255,90,90,0.08); border: 1px solid rgba(255,90,90,0.25); color: #ff9c9c; border-radius: 8px; padding: 10px 14px; margin-bottom: 20px; font-size: 13px; display:none; }
+  .error-banner.show { display:block; }
+
+  /* single, restrained micro-interaction reused across both apps */
+  @keyframes cauce-enter { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+  .enter { animation: cauce-enter 220ms cubic-bezier(0.16,1,0.3,1); }
+
+  @media (max-width: 860px) {
+    .board { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+  <div class="page">
+    <header>
+      <div>
+        <h1>Cauce</h1>
+        <div class="subtitle"><span class="status-dot" id="status-dot"></span>boss dashboard · read-only</div>
+      </div>
+      <div class="subtitle" id="last-updated">—</div>
+    </header>
+
+    <div class="error-banner" id="error-banner"></div>
+
+    <div class="progress-wrap">
+      <div class="progress-meta">
+        <span id="progress-label">0 / 0 tasks done</span>
+        <span id="progress-percent">0%</span>
+      </div>
+      <div class="progress-track"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    </div>
+
+    <div class="board" id="board">
+      <div class="column" data-col="todo">
+        <div class="column-head"><h2>Todo</h2><span class="column-count" id="count-todo">0</span></div>
+        <div class="column-body" id="col-todo"></div>
+      </div>
+      <div class="column" data-col="claimed">
+        <div class="column-head"><h2>Claimed</h2><span class="column-count" id="count-claimed">0</span></div>
+        <div class="column-body" id="col-claimed"></div>
+      </div>
+      <div class="column" data-col="done">
+        <div class="column-head"><h2>Done</h2><span class="column-count" id="count-done">0</span></div>
+        <div class="column-body" id="col-done"></div>
+      </div>
+    </div>
+
+    <div class="activity">
+      <h2>Activity — active branches</h2>
+      <div id="activity-list"><div class="empty-hint">No active branches yet.</div></div>
+    </div>
+  </div>
+
+<script>
+  const POLL_MS = 5000;
+  let lastSnapshot = null;
+
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  }
+
+  function renderCard(task) {
+    const classes = ["card", esc(task.status)];
+    if (task.ready) classes.push("ready");
+    const pills = [];
+    if (task.suggested_model) pills.push(`<span class="pill model">${esc(task.suggested_model)}</span>`);
+    if (task.owner) pills.push(`<span class="pill">${esc(task.owner)}</span>`);
+    if (task.ready) pills.push(`<span class="pill ready">ready</span>`);
+    return `<div class="${classes.join(' ')}">
+      <div class="card-title">${esc(task.id)} — ${esc(task.title)}</div>
+      <div class="card-meta">${pills.join("")}</div>
+    </div>`;
+  }
+
+  function renderColumn(elId, countId, tasks) {
+    const el = document.getElementById(elId);
+    document.getElementById(countId).textContent = tasks.length;
+    el.innerHTML = tasks.length ? tasks.map(renderCard).join("") : `<div class="empty-hint">Nothing here.</div>`;
+  }
+
+  function renderActivity(activity) {
+    const el = document.getElementById("activity-list");
+    if (!activity.length) {
+      el.innerHTML = `<div class="empty-hint">No active branches yet.</div>`;
+      return;
+    }
+    el.innerHTML = activity.map(a => `
+      <div class="activity-row">
+        <div>
+          <span class="activity-branch">${esc(a.branch)}</span>
+          &nbsp;·&nbsp;<span class="owner-tag">${esc(a.owner || "unassigned")}</span>
+          &nbsp;·&nbsp;${esc(a.title)}
+        </div>
+        <div class="activity-when">${esc(a.last_commit || "no commits yet")}</div>
+      </div>
+    `).join("");
+  }
+
+  function showError(msg) {
+    const el = document.getElementById("error-banner");
+    if (!msg) { el.classList.remove("show"); el.textContent = ""; return; }
+    el.textContent = msg;
+    el.classList.add("show");
+  }
+
+  async function refresh() {
+    const dot = document.getElementById("status-dot");
+    try {
+      const res = await fetch("/api/state");
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "unknown error");
+
+      showError(null);
+      dot.classList.add("live");
+
+      const snapshot = JSON.stringify(data);
+      const changed = snapshot !== lastSnapshot;
+      lastSnapshot = snapshot;
+
+      document.getElementById("progress-label").textContent = `${data.done_count} / ${data.total} tasks done`;
+      document.getElementById("progress-percent").textContent = `${data.percent_complete}%`;
+      document.getElementById("progress-fill").style.width = `${data.percent_complete}%`;
+
+      renderColumn("col-todo", "count-todo", data.columns.todo || []);
+      renderColumn("col-claimed", "count-claimed", data.columns.claimed || []);
+      renderColumn("col-done", "count-done", data.columns.done || []);
+      renderActivity(data.activity || []);
+
+      if (changed) {
+        const board = document.getElementById("board");
+        board.classList.remove("enter"); void board.offsetWidth; board.classList.add("enter");
+      }
+      document.getElementById("last-updated").textContent = "updated " + new Date().toLocaleTimeString();
+    } catch (err) {
+      dot.classList.remove("live");
+      showError("Could not reach the dashboard backend: " + err.message);
+    }
+  }
+
+  refresh();
+  setInterval(refresh, POLL_MS);
+</script>
+</body>
+</html>

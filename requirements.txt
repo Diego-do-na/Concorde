@@ -1,0 +1,8 @@
+# Shared dependencies for scripts/, boss-dashboard/, and model-requester/.
+# Python 3.11+ required.
+
+PyYAML>=6.0
+fastapi>=0.110
+uvicorn[standard]>=0.29
+requests>=2.31
+python-dotenv>=1.0
