@@ -19,6 +19,37 @@ Building / running / testing
   - cargo run --bin concorde
   - cargo test
 
+`POST /detect` request shapes (FR-003)
+- **Canonical** — this is Altur's judge client (`hackmty26/scripts/check_endpoint.py`) and the only shape it actually sends. Match it exactly and everything else below is just defensive robustness:
+
+  ```bash
+  curl -X POST http://127.0.0.1:8080/detect \
+    -H "Content-Type: application/json" \
+    -d '{"call_id": "...", "audio_base64": "<base64 of the complete WAV file bytes>", "sample_rate": 8000, "channels": 2}'
+  ```
+
+- **Tolerated fallbacks** (accepted with no configuration; `parse.rs` tries them in this order after the canonical shape, and always ahead of giving up):
+  - JSON with the base64 audio under a different key — any of `audio`, `wav`, `data`, `file`, `clip`, `content`:
+    ```bash
+    curl -X POST http://127.0.0.1:8080/detect \
+      -H "Content-Type: application/json" \
+      -d '{"audio": "<base64 WAV>"}'
+    ```
+  - Raw binary WAV body (`RIFF....WAVE` magic), no encoding:
+    ```bash
+    curl -X POST http://127.0.0.1:8080/detect --data-binary @call.wav
+    ```
+  - Raw base64 body, no JSON envelope:
+    ```bash
+    curl -X POST http://127.0.0.1:8080/detect --data-binary "$(base64 -w0 call.wav)"
+    ```
+  - `multipart/form-data` with a single file part:
+    ```bash
+    curl -X POST http://127.0.0.1:8080/detect -F "file=@call.wav"
+    ```
+
+  Base64 in any of the above (canonical or fallback) tolerates a leading `data:audio/wav;base64,` URI prefix, embedded whitespace, padded or unpadded input, and the URL-safe alphabet.
+
 Environment variables (defaults and rationale)
 - `CONCORDE_BIND` — bind address (default `127.0.0.1:8080`).
 - `CONCORDE_MODEL_PATH` — path to ONNX model.
