@@ -1395,10 +1395,10 @@ tasks:
   depends_on:
   - T006
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T035
+  claimed_at: '2026-09-12T23:29:20+00:00'
   done_at: null
 - id: T036
   title: '[Néstor] Detail view assembly: recent-calls sidebar, header metrics, layout,
