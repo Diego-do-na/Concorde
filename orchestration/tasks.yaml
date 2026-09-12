@@ -1789,11 +1789,11 @@ tasks:
   depends_on:
   - T003
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T057
   claimed_at: '2026-09-12T23:09:07+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:22:35+00:00'
 - id: T045
   title: '[Paul] Live local semantic vote in /detect: probe detector + whisper-rs
     on one caller turn, hard timeout, bounded fusion, explicit degradation (ADR-008,
