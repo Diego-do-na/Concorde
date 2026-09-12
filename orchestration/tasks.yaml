@@ -111,10 +111,10 @@ tasks:
   - product/ml/README.md
   depends_on: []
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-claude
+  branch: task/T002
+  claimed_at: '2026-09-12T22:05:16+00:00'
   done_at: null
 - id: T003
   title: '[Paul] Vultr: admin access via Tailscale, confirm the public IP, team keys,
