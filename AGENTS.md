@@ -146,6 +146,15 @@ pytest                                           # Python-side tests
     case) or from the main checkout; it always operates on
     `orchestration/tasks.yaml` at main, per `finish_task.py`'s own
     requirement.
+  - `./orchestration/scripts/autopilot.sh [owner] [agent]` — the loop
+    version of `work.sh`: claims a task, launches the agent interactively
+    (normal permission prompts, nothing bypassed), and when the agent's
+    session ends it stops and asks you to confirm the diff stayed inside
+    the task's declared scope before running `finish_task.py` and moving
+    to the next eligible task. One invocation, keeps going until you quit
+    it. If it's interrupted (or you answer "quit") with a task still
+    claimed, re-running it resumes that same task's worktree instead of
+    claiming a new one.
   - `./orchestration/scripts/dashboard.sh` — one person runs this to serve
     the read-only board monitor at `http://localhost:8000`.
   - The raw Python entry points (`claim_task.py`, `finish_task.py`,
@@ -155,9 +164,20 @@ pytest                                           # Python-side tests
 - One git branch per task: `task/<id>`.
 - Every task's `scope` in `tasks.yaml` is a set of non-overlapping file
   paths (§13.2 of the spec) — this is what lets Cauce grant parallel claims
-  across worktrees without merge conflicts. If your task needs to touch a
-  file outside its declared scope, stop and get the scope corrected via
-  `add_task.py`/manual re-scoping rather than editing outside it.
+  across worktrees without merge conflicts. **This is a human/agent review
+  responsibility, not something any script verifies for you** — whoever
+  reviews a task before finishing it (in `autopilot.sh`'s prompt, or by
+  hand) must check the diff only touches files inside the declared scope.
+  If a task turns out to need work outside its own scope — e.g. finishing
+  a DB schema surfaces the need for a query layer that's really a separate
+  task — don't silently expand the current task's scope to cover it and
+  don't let the agent edit those files. Either narrow the task's own
+  Definition of Done so it self-verifies within its own scope (a schema
+  task proves itself with its own fixture/migration test, not by writing
+  the real query layer), or create the follow-up as its own task via
+  `add_task.py` with `depends_on` pointing at the current one. Sequential
+  dependency chains are the intended way to model "B needs A finished
+  first" — not overlapping scope.
 - Agents have **no architectural decision authority**. Any deviation from
   the feature contract (`fc-1`) or the API contract (§8) requires explicit
   human approval from Paul (architecture), Diego (modeling), or Néstor
