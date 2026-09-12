@@ -632,10 +632,10 @@ tasks:
   depends_on:
   - T002
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: NC-EC-claude
+  branch: task/T013
+  claimed_at: '2026-09-12T22:43:27+00:00'
   done_at: null
 - id: T014
   title: '[Paul] Rust production feature extractor F-01…F-22 in fc-1 order'
