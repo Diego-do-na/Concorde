@@ -26,3 +26,5 @@ ndarray = "0.15"
 multer = "3.1"
 futures-core = "0.3"
 
+[dev-dependencies]
+tower = { version = "0.4", features = ["util"] }

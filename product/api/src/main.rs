@@ -12,7 +12,6 @@ mod metrics;
 mod feed;
 
 use std::{net::SocketAddr, sync::Arc};
-use axum::{routing::get, Router};
 use tracing::info;
 
 use crate::state::AppState;
@@ -32,7 +31,7 @@ async fn main() -> anyhow::Result<()> {
         "127.0.0.1:8080".parse().expect("static default valid")
     });
 
-    let app = Router::new().route("/health", get(routes::health::health)).with_state(state);
+    let app = routes::router().with_state(state);
 
     info!(%bind, "starting concorde API");
     axum::Server::bind(&bind)

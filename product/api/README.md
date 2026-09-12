@@ -50,6 +50,14 @@ Building / running / testing
 
   Base64 in any of the above (canonical or fallback) tolerates a leading `data:audio/wav;base64,` URI prefix, embedded whitespace, padded or unpadded input, and the URL-safe alphabet.
 
+Fault semantics (ADR-006, NFR-005)
+- `POST /detect` **always answers HTTP 200** with the two-key body `{"is_synthetic": <bool>, "confidence": <float in [0,1]>}` — this holds for a valid call, a malformed/empty/oversized body, a panic anywhere in the handler, and a handler that overruns its time budget. It never emits a 5xx in normal operation.
+- Every request runs through `http::failsafe::run_failsafe`, which wraps the handler future in a panic catch (`catch_unwind` + `AssertUnwindSafe`, since the future itself need not be `UnwindSafe`) and a `CONCORDE_HANDLER_TIMEOUT_MS` timeout (default `20000` ms). The judge's own per-call timeout is 30 s including network, so 20 s leaves margin without ever leaving the judge's client hanging.
+- On a panic, a timeout, or a reported failure (e.g. every `ParseError` variant from FR-003 — malformed JSON, invalid base64, an oversized body, etc.), the response is the **fallback verdict** `{"is_synthetic": false, "confidence": 0.50}` at HTTP 200. The incident is always logged internally as a structured `incident` event (`reason`, `request_id`, `call_id` when it was parsed, and the request's byte size) — a degradation is never silently unmarked (§7.2).
+- `CONCORDE_STRICT=1` (dev only — never set in production) turns that same failure into HTTP 500 with the failure detail in the body instead of masking it behind the fallback verdict, so a developer sees it immediately instead of a plausible-looking 0.50.
+- The router disables axum's own default 2 MB request-body limit (`DefaultBodyLimit::disable()` in `routes/mod.rs`): legitimate judge payloads run 6-12 MB (see `CONCORDE_MAX_BODY_BYTES` below), and even a genuinely oversized body must come back as the fallback verdict rather than a bare transport-level 413 — sizing is enforced by `http::parse` itself, after buffering, exactly as documented there.
+- The response body's confidence is always clamped to `[0, 1]` and rounded to 4 decimals (`DetectResponse::new`), so this holds for the placeholder verdict today and for the real model's output once T014/T019/T020 land.
+
 Environment variables (defaults and rationale)
 - `CONCORDE_BIND` — bind address (default `127.0.0.1:8080`).
 - `CONCORDE_MODEL_PATH` — path to ONNX model.
