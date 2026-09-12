@@ -285,11 +285,11 @@ tasks:
   - product/console/public/
   depends_on: []
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T004
   claimed_at: '2026-09-12T22:40:56+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:04:28+00:00'
 - id: T005
   title: '[Néstor] Console app shell: header, nav tabs, routing, connection/health
     state'
