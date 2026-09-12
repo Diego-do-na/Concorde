@@ -443,11 +443,11 @@ tasks:
   depends_on:
   - T007
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-claude
   branch: task/T008
   claimed_at: '2026-09-12T23:21:05+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:36:27+00:00'
 - id: T009
   title: '[Paul] WAV decode, channel split, format validation (hound)'
   description: '(a) BUILD — product/api/src/audio/decode.rs: `decode_wav(bytes) ->
