@@ -1335,11 +1335,11 @@ tasks:
   depends_on:
   - T031
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T033
   claimed_at: '2026-09-12T23:35:59+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:53:35+00:00'
 - id: T034
   title: '[Néstor] Detail view part 4: signal breakdown panel with explicit availability'
   description: '(a) BUILD — product/console/src/views/detail/signals/: SIGNAL BREAKDOWN
