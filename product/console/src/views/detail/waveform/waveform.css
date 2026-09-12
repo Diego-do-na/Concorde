@@ -1,0 +1,52 @@
+/*
+ * Single shared coordinate space: TimeScale.xFor(t) returns a pixel position
+ * relative to the panel's left edge (0..width), where 0..labelGutter is the
+ * reserved label column and labelGutter..width is the plot. Every lane's
+ * canvas therefore spans the FULL panel width (it simply draws nothing left
+ * of labelGutter) and the label is an absolutely-positioned overlay at the
+ * same origin — so canvases, the label column, the time axis, and every
+ * later overlay (markers T032, confidence trace T033) all agree on what
+ * pixel a given timestamp maps to.
+ */
+
+.waveform-panel {
+  position: relative;
+  width: 100%;
+}
+
+.waveform-lane-row {
+  position: relative;
+  height: 66px;
+  border-bottom: 1px solid oklch(0.25 0.015 252);
+  background: oklch(0.205 0.014 252);
+}
+
+.waveform-lane-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.waveform-lane-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 84px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  box-sizing: border-box;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: oklch(0.6 0.012 252);
+  background: oklch(0.2 0.014 252);
+  border-right: 1px solid oklch(0.25 0.015 252);
+  pointer-events: none;
+}
+
+.waveform-time-axis {
+  position: relative;
+  color: oklch(0.6 0.012 252);
+}

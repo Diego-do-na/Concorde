@@ -143,3 +143,42 @@ Type table: the console mirrors spec §8.2 for the analysis payload (verdict, si
 
 - `waveform { caller:number[], agent:number[], bucket_ms:50 }` — peak-envelope buckets for rendering only; this field is never sent by `/detect` and is flagged as an `/analyze` enrichment (T029).
 
+## View 2 — Call detail: `src/views/detail/waveform/` (T031)
+
+Every overlay in the detail view (waveform lanes here, markers in T032, the
+confidence trace in T033) shares **one coordinate space**: `TimeScale.xFor(t)`
+returns a pixel position relative to the panel's left edge, where
+`0..labelGutter` (84px) is the reserved lane-label column and
+`labelGutter..width` is the plot. Each lane's `<canvas>` spans the *full*
+panel width and simply draws nothing left of `labelGutter` — so canvases, the
+HTML label overlay, the time axis, and later overlay layers all agree on
+which pixel a given timestamp maps to.
+
+`createTimeScale(durationS, width, labelGutter?)` → `TimeScale`:
+
+- `width` / `labelGutter` (default 84px) / `plotWidth` (`width - labelGutter`)
+- `xFor(t)` — seconds → px, linear, clamped to `[labelGutter, width]`
+- `tFor(x)` — px → seconds, linear, clamped to `[0, durationS]` (inverse of `xFor`)
+
+`width` is driven by `useElementWidth()`, a `ResizeObserver`-backed hook on
+the panel container, so both lanes (and the axis/overlays on top of them)
+re-measure and stay pixel-aligned together on resize.
+
+Rendering pipeline per lane (`drawLane`, in `drawLane.ts`):
+
+- If `analysis.waveform` is present: downsample the raw peak buckets to
+  `bucketCount(scale.plotWidth)` buckets (`peakEnvelope.ts`) and draw mirrored
+  bars off the mid-baseline (`BASELINE_COLOR = oklch(0.62 0.03 252)`). On the
+  **caller** lane only, turns are additionally tinted with the verdict-tone
+  wash (`drawTurnTint`).
+- If `analysis.waveform` is absent: draw the turn intervals as solid blocks
+  (`drawTurnBlocks`) instead — the lane never renders blank.
+
+Hovering the panel emits a `t` + linearly-interpolated `confidence`
+(`interpolateConfidence`, over `analysis.timeline`) via the `onScrub` prop —
+this is the hook T033's confidence-trace lane synchronizes its own playhead
+against — and draws a local playhead line + scrub box.
+
+Lane border: `oklch(0.25 0.015 252)`. Lane height: 66px (×2 = panel height).
+Playhead: `INK.PLAYHEAD` (`oklch(0.95 0.006 252)`).
+
