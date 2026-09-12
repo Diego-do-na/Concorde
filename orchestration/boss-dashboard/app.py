@@ -7,17 +7,20 @@ watching the board never interferes with someone's in-progress work, and
 so it's safe to leave running unattended.
 
 Run:
-    uvicorn app:app --port 8000 --app-dir boss-dashboard
-(or `cd boss-dashboard && uvicorn app:app --port 8000`)
+    uvicorn app:app --port 8000 --app-dir orchestration/boss-dashboard
+(or `cd orchestration/boss-dashboard && uvicorn app:app --port 8000`,
+or just `./orchestration/scripts/dashboard.sh` from the repo root)
 
 Config (env vars, both optional):
-    CAUCE_REPO_URL    where to clone the mirror from. Defaults to the
-                       local repo this file lives in, which is enough for
+    CAUCE_REPO_URL    where to clone the mirror from. Defaults to the git
+                       repository this file lives inside (the whole
+                       Concorde repo, found by walking up from
+                       orchestration/boss-dashboard/), which is enough for
                        one person watching their own team's local remote
                        setup; point it at the real GitHub URL for a
                        dashboard that runs somewhere else.
     CAUCE_MIRROR_PATH where to keep the mirror clone. Defaults to
-                       boss-dashboard/_mirror (gitignored).
+                       orchestration/boss-dashboard/_mirror (gitignored).
 """
 
 from __future__ import annotations
@@ -33,13 +36,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 APP_DIR = Path(__file__).resolve().parent
-REPO_ROOT = APP_DIR.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+ORCH_ROOT = APP_DIR.parent          # .../orchestration
+GIT_ROOT = ORCH_ROOT.parent         # the actual Concorde repo root
+sys.path.insert(0, str(ORCH_ROOT / "scripts"))
 
 from common import CauceError, dependencies_satisfied, load_tasks, tasks_by_id  # noqa: E402
 
 MIRROR_PATH = Path(os.environ.get("CAUCE_MIRROR_PATH", APP_DIR / "_mirror")).resolve()
-REPO_URL = os.environ.get("CAUCE_REPO_URL", str(REPO_ROOT))
+# Default clones the whole repo (GIT_ROOT), not just orchestration/ — the
+# mirror needs api/, ml/, console/ etc. too so `git log`/branch activity
+# for task branches (which touch product code) is meaningful, and because
+# orchestration/ alone isn't a git repository to clone from.
+REPO_URL = os.environ.get("CAUCE_REPO_URL", str(GIT_ROOT))
 
 app = FastAPI(title="Cauce Boss Dashboard")
 
@@ -116,7 +124,7 @@ def _recent_commits(branch: str, limit: int = 5) -> list[dict[str, str]]:
 def get_state() -> JSONResponse:
     try:
         _refresh_mirror()
-        data = load_tasks(MIRROR_PATH / "tasks.yaml")
+        data = load_tasks(MIRROR_PATH / "orchestration" / "tasks.yaml")
     except CauceError as exc:
         # A monitor that can't reach git should say so plainly, not crash.
         return JSONResponse(status_code=503, content={"error": str(exc)})

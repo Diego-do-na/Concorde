@@ -5,7 +5,7 @@ This is the one place task-creation logic lives; model-requester's web
 app imports `add_task()` directly instead of reimplementing this.
 
 CLI:
-    python scripts/add_task.py \\
+    python orchestration/scripts/add_task.py \\
         --title "Add pagination to /tasks" \\
         --description "..." \\
         --scope src/api/tasks.py --scope tests/test_tasks.py \\

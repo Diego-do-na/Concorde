@@ -2,17 +2,17 @@
 model-requester — write-only task intake.
 
 A tiny form that turns itself into a valid tasks.yaml entry via
-scripts/add_task.py. This app does not monitor the board — the one GET
-endpoint besides the form itself exists only to populate the "depends on"
-multi-select with current task ids, not to report status.
+orchestration/scripts/add_task.py. This app does not monitor the board —
+the one GET endpoint besides the form itself exists only to populate the
+"depends on" multi-select with current task ids, not to report status.
 
 Run:
-    uvicorn app:app --port 8001 --app-dir model-requester
-(or `cd model-requester && uvicorn app:app --port 8001`)
+    uvicorn app:app --port 8001 --app-dir orchestration/model-requester
+(or `cd orchestration/model-requester && uvicorn app:app --port 8001`)
 
 Run this from a machine with a normal git checkout of the repo (same
-assumption as the scripts/*.py CLIs) — it pushes directly to that
-checkout's remote.
+assumption as the orchestration/scripts/*.py CLIs) — it pushes directly to
+that checkout's remote.
 """
 
 from __future__ import annotations
@@ -27,8 +27,8 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 APP_DIR = Path(__file__).resolve().parent
-REPO_ROOT = APP_DIR.parent
-sys.path.insert(0, str(REPO_ROOT / "scripts"))
+ORCH_ROOT = APP_DIR.parent          # .../orchestration
+sys.path.insert(0, str(ORCH_ROOT / "scripts"))
 
 from add_task import add_task  # noqa: E402
 from common import CauceError, load_tasks, run_git  # noqa: E402

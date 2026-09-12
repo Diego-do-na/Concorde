@@ -3,7 +3,7 @@ claim_task.py — pick the next eligible task, claim it, and set you up a
 worktree to do the work in.
 
 Usage:
-    python scripts/claim_task.py [--owner "Name"]
+    python orchestration/scripts/claim_task.py [--owner "Name"]
 
 Algorithm:
     1. git pull.

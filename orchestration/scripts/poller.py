@@ -8,7 +8,7 @@ Claude Code or Cursor itself — a human still reads the "TASK READY"
 announcement and starts the agent by hand in the printed worktree.
 
 Usage:
-    python scripts/poller.py [--interval 30] [--owner "Name"]
+    python orchestration/scripts/poller.py [--interval 30] [--owner "Name"]
 
 Nothing here needs to run 24/7 on a shared machine — each teammate runs
 their own poller (or doesn't, and just runs claim_task.py by hand).
@@ -23,7 +23,7 @@ import time
 
 from common import (
     CauceError,
-    REPO_ROOT,
+    ORCHESTRATION_ROOT,
     dependencies_satisfied,
     find_scope_conflict,
     get_git_user_name,
@@ -77,10 +77,10 @@ def run_once(owner: str) -> None:
         print(f"warning: could not read tasks.yaml this cycle ({exc})", file=sys.stderr)
         return
 
-    claim_script = REPO_ROOT / "scripts" / "claim_task.py"
+    claim_script = ORCHESTRATION_ROOT / "scripts" / "claim_task.py"
     result = subprocess.run(
         [sys.executable, str(claim_script), "--owner", owner],
-        cwd=REPO_ROOT,
+        cwd=ORCHESTRATION_ROOT,
         capture_output=True,
         text=True,
     )

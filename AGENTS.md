@@ -7,6 +7,17 @@ Challenge): a recorded call comes in, the system decides whether the caller
 Read this file first — it is the load-bearing summary. Go to the PDF only for
 detail (exact feature math, ADR rationale, risk register).
 
+## Repo layout — two separate worlds
+
+- **`orchestration/`** is Cauce: the task board, claim/finish scripts, the
+  boss-dashboard and model-requester web apps. It is coordination tooling,
+  not CONCORDE product code. You claim a task by running something under
+  `orchestration/scripts/`, but the *work itself* — everything a task's
+  `scope` points at — happens outside `orchestration/`, in `api/`, `ml/`,
+  `console/`, `deploy/`, `docs/`, etc. Don't add product code under
+  `orchestration/`, and don't add Cauce mechanics anywhere else.
+- Everything else at the repo root is CONCORDE itself.
+
 ## Technical thesis (§1, ADR-005) — read before touching modeling code
 
 Most teams will train an acoustic classifier on the raw waveform. We don't.
@@ -100,27 +111,47 @@ that looks fine locally and fails (or scores zero) in the graded round.
   `validation/`).
 - **Dashboard**: React, dark-mode-first fintech console. Lives in
   `console/`.
-- **Task orchestration**: Cauce (this repo's `scripts/`, `tasks.yaml`) — see
+- **Task orchestration**: Cauce, entirely under `orchestration/` — see
   below.
 
 ## Build / test
 
 ```bash
-pip install -r requirements.txt   # Cauce scripts + boss-dashboard + model-requester deps
-pytest                            # Python-side tests
+pip install -r orchestration/requirements.txt   # Cauce scripts + boss-dashboard + model-requester deps
+pytest                                           # Python-side tests
 # Rust and console build/test commands land with T001/T004 respectively —
 # see api/README or console/README once those tasks are done.
 ```
 
 ## Coordination rules (Cauce)
 
-- **Never edit `tasks.yaml` by hand.** Only `scripts/claim_task.py`,
-  `scripts/finish_task.py`, and `scripts/add_task.py` may write to it. Hand
-  edits race with other people's pushes and will be overwritten or corrupt
-  someone else's claim.
-- Claim a task with `python scripts/claim_task.py`, do the work in the
-  worktree it creates, then finish with `python scripts/finish_task.py
-  --task-id <id>`.
+- **Never edit `orchestration/tasks.yaml` by hand.** Only
+  `orchestration/scripts/claim_task.py`,
+  `orchestration/scripts/finish_task.py`, and
+  `orchestration/scripts/add_task.py` may write to it. Hand edits race with
+  other people's pushes and will be overwritten or corrupt someone else's
+  claim.
+- **One-time per machine**: `./orchestration/scripts/setup.sh` — creates
+  `orchestration/.venv`, installs `orchestration/requirements.txt`, and
+  sets `git config user.name` if unset (that name becomes the default
+  Cauce owner).
+- **The daily loop, one command each way**:
+  - `./orchestration/scripts/work.sh [owner] [agent]` — claims the next
+    eligible task, creates its worktree (as a sibling of the repo, outside
+    `orchestration/`), and launches the agent (`claude` by default, pass
+    `cursor` as the second arg) directly inside it. Safe to run from
+    anywhere (it always resolves the main checkout first).
+  - `./orchestration/scripts/finish.sh <task-id>` — marks a claimed task
+    done. Safe to run from inside the task's own worktree (the common
+    case) or from the main checkout; it always operates on
+    `orchestration/tasks.yaml` at main, per `finish_task.py`'s own
+    requirement.
+  - `./orchestration/scripts/dashboard.sh` — one person runs this to serve
+    the read-only board monitor at `http://localhost:8000`.
+  - The raw Python entry points (`claim_task.py`, `finish_task.py`,
+    `poller.py`, `add_task.py`, `notify_discord.py`, `check_merge.py`)
+    still work directly under `orchestration/scripts/` if you need more
+    control than the wrappers give.
 - One git branch per task: `task/<id>`.
 - Every task's `scope` in `tasks.yaml` is a set of non-overlapping file
   paths (§13.2 of the spec) — this is what lets Cauce grant parallel claims
@@ -131,16 +162,19 @@ pytest                            # Python-side tests
   the feature contract (`fc-1`) or the API contract (§8) requires explicit
   human approval from Paul (architecture), Diego (modeling), or Néstor
   (frontend) as applicable — see §13.1 for the RACI.
-- Discord notifications (`scripts/notify_discord.py`) are optional and
-  degrade to a console print when `DISCORD_WEBHOOK_URL` /
-  `DISCORD_BOT_TOKEN` aren't set. Nothing in this repo requires Discord to
-  function.
+- Discord notifications (`orchestration/scripts/notify_discord.py`) are
+  optional and degrade to a console print when `DISCORD_WEBHOOK_URL` /
+  `DISCORD_BOT_TOKEN` aren't set (put them in `orchestration/.env`, which
+  is gitignored). Nothing in this repo requires Discord to function.
 
 ## Where things live
 
 - Full spec (source of truth for anything not covered above):
   `docs/CONCORDE_Especificacion_Tecnica_v1.0.pdf`
-- Task board: `tasks.yaml` (schema + current 23 tasks from §13.2)
+- Task board: `orchestration/tasks.yaml` — currently a small smoke-test
+  board (verifying Cauce itself works with 3 agents in parallel); the real
+  23-task board from spec §13.2 is saved at
+  `orchestration/tasks.concorde-v1-seed.yaml` for reference/fallback.
 - Environment variables: §18.2 of the spec (`CONCORDE_MODEL_PATH`,
   `CONCORDE_FEATURE_CONTRACT`, `CONCORDE_THRESHOLD`,
   `CONCORDE_SEMANTIC_ENABLED`, `CONCORDE_SEMANTIC_TIMEOUT_MS`,

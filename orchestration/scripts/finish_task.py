@@ -2,7 +2,7 @@
 finish_task.py — close out a claimed task.
 
 Usage:
-    python scripts/finish_task.py --task-id T002
+    python orchestration/scripts/finish_task.py --task-id T002
 
 Run this from the main repo checkout (not from inside the task's own
 worktree) — it needs to update tasks.yaml on main, which every task
@@ -87,7 +87,7 @@ def main() -> None:
         print(f"CONFLICT: {branch} does not merge cleanly into main.")
         print("Nothing was pushed and the task was NOT marked done.")
         print(f"Resolve the conflict manually (rebase/merge {branch} onto main), then re-run:")
-        print(f"    python scripts/finish_task.py --task-id {task_id}")
+        print(f"    python orchestration/scripts/finish_task.py --task-id {task_id}")
         notify("conflict", task, owner)
         raise SystemExit(1)
 

@@ -62,9 +62,16 @@ def find_repo_root(start: Path | None = None) -> Path:
     return Path(out.stdout.strip())
 
 
+# REPO_ROOT is the git repository root (the whole Concorde repo, which also
+# holds api/, ml/, console/, docs/, etc.) — git plumbing (pull/push/commit)
+# always operates there. Everything that is purely Cauce's own state lives
+# under ORCHESTRATION_ROOT instead, so the task board, scripts, dashboards
+# and this tool's own secrets stay out of the product-code tree the agents
+# work in.
 REPO_ROOT = find_repo_root()
-TASKS_FILE = REPO_ROOT / "tasks.yaml"
-DISCORD_MAP_FILE = REPO_ROOT / "discord_map.yaml"
+ORCHESTRATION_ROOT = REPO_ROOT / "orchestration"
+TASKS_FILE = ORCHESTRATION_ROOT / "tasks.yaml"
+DISCORD_MAP_FILE = ORCHESTRATION_ROOT / "discord_map.yaml"
 
 # Every script and both apps import common.py, so this is the one place
 # that needs to load .env — DISCORD_WEBHOOK_URL / DISCORD_BOT_TOKEN end up
@@ -72,7 +79,7 @@ DISCORD_MAP_FILE = REPO_ROOT / "discord_map.yaml"
 # Missing .env is fine (nothing to load); an existing shell export always
 # wins over .env (override=False) so a one-off `export ...=...` in your
 # terminal still takes precedence for testing.
-load_dotenv(REPO_ROOT / ".env", override=False)
+load_dotenv(ORCHESTRATION_ROOT / ".env", override=False)
 
 
 # ---------------------------------------------------------------------------
@@ -178,7 +185,7 @@ def save_tasks(data: dict[str, Any], path: Path | None = None) -> None:
     p = path or TASKS_FILE
     header = (
         "# tasks.yaml — the single source of truth for Cauce's task board.\n"
-        "# NEVER edit this file by hand outside of scripts/*.py.\n"
+        "# NEVER edit this file by hand outside of orchestration/scripts/*.py.\n"
         "# See git history / README.md for the full schema.\n"
     )
     with open(p, "w", encoding="utf-8") as f:

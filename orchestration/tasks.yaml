@@ -1,5 +1,5 @@
 # tasks.yaml — the single source of truth for Cauce's task board.
-# NEVER edit this file by hand outside of scripts/*.py.
+# NEVER edit this file by hand outside of orchestration/scripts/*.py.
 #
 # THIS IS A TEMPORARY SMOKE-TEST BOARD, not the real CONCORDE task list.
 # Purpose: verify that claim_task.py / finish_task.py / check_merge.py work
