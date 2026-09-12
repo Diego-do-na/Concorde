@@ -186,10 +186,10 @@ tasks:
   depends_on:
   - T003
   suggested_model: haiku
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T054
+  claimed_at: '2026-09-12T22:50:19+00:00'
   done_at: null
 - id: T004
   title: '[Néstor] Console design tokens + Vite/React scaffold (no views yet)'
