@@ -84,11 +84,11 @@ tasks:
   - canary/c005.txt
   depends_on: []
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: paul-claude
   branch: task/C-005
   claimed_at: '2026-09-12T16:47:52+00:00'
-  done_at: null
+  done_at: '2026-09-12T16:50:36+00:00'
 - id: C-006
   title: 'Canary: write c006.txt'
   description: 'Create the file canary/c006.txt containing exactly the line "success!
