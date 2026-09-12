@@ -1016,10 +1016,10 @@ tasks:
   - T001
   - T054
   suggested_model: haiku
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T023
+  claimed_at: '2026-09-12T23:26:39+00:00'
   done_at: null
 - id: T024
   title: '[Paul] First public deploy over https: placeholder /detect reachable by
