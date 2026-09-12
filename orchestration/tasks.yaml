@@ -1279,10 +1279,10 @@ tasks:
   depends_on:
   - T006
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: NC-EC-claude
+  branch: task/T031
+  claimed_at: '2026-09-12T23:22:38+00:00'
   done_at: null
 - id: T032
   title: '[Néstor] Detail view part 2: event markers overlay (overlap / interruption
