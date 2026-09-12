@@ -1,13 +1,29 @@
-import React from 'react'
+import React from "react";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { ShellProvider } from "./app/shellContext";
+import Header from "./app/Header";
+import Nav from "./app/Nav";
 
-export default function App() {
+const Placeholder: React.FC<{text:string}> = ({text}) => (
+  <div style={{padding:20}}>{text}</div>
+)
+
+export default function App(){
   return (
-    <div className="app-root">
-      <div className="wordmark">
-        <div className="brand">CONCORDE</div>
-        <div className="product">CONSOLE</div>
-      </div>
-    </div>
+    <ShellProvider>
+      <BrowserRouter>
+        <Header />
+        <Nav />
+        <main>
+          <Routes>
+            <Route path="/" element={<Placeholder text="Monitor view lands with task Txxx" />} />
+            <Route path="/calls/:id" element={<Placeholder text="Detail view lands with task Txxx" />} />
+            <Route path="/exec" element={<Placeholder text="Exec view lands with task Txxx" />} />
+            <Route path="/demo" element={<Placeholder text="Demo view lands with task Txxx" />} />
+          </Routes>
+        </main>
+      </BrowserRouter>
+    </ShellProvider>
   )
 }
 

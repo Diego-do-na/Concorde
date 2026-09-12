@@ -1,0 +1,23 @@
+.shell-header{
+  border-bottom: 1px solid #e6e6e6;
+  padding: 10px 16px;
+  background: white;
+}
+.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.wordmark{display:flex;flex-direction:column}
+.brand{font-weight:600;font-size:13px;letter-spacing:0.14em}
+.product{font-size:11px;color:#888}
+.left-chips{display:flex;align-items:center;gap:8px}
+.chip{background:#f5f5f7;padding:4px 8px;border-radius:6px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
+.health{display:flex;align-items:center;gap:6px}
+.health-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.health-dot.online{background:green}
+.health-dot.offline{background:orange}
+.health-label{font-size:12px;color:#444}
+.right-chips{display:flex;align-items:center;gap:8px}
+.dep-chip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;border:1px solid transparent}
+.dep-chip.degraded{border-color:orange;background:#fff7ee}
+.dep-chip .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
+.dot.green{background:green}.dot.blue{background:steelblue}.dot.gray{background:gray}
+.dep-chip .label{font-weight:600}.dep-chip .state{margin-left:6px;color:#333}
+

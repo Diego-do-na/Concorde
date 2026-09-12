@@ -112,3 +112,14 @@ Token table (name -> value) — copied from `src/theme/tokens.ts`:
 
 Rule: exactly three semantic states (VERIFIED, REVIEW, SYNTHETIC); never rely on colour alone — always include label text + dot/icon.
 
+## Routing
+
+- `/` → Monitor
+- `/calls/:id` → Detail
+- `/exec` → Exec
+- `/demo` → Demo
+
+## Degrade rule
+
+- The header keeps the last-known health values when `GET /health` fails. The feed chip switches to `OFFLINE` and dependency chips become amber to indicate degraded state. This ensures the header never blanks (NFR-012).
+
