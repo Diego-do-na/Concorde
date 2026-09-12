@@ -3,6 +3,7 @@
 Module map:
 - `http/` — HTTP parsing and request helpers (routes, failsafe). (T00X)
 - `audio/` — decoding and VAD. (T00X)
+  - `audio/decode.rs` — WAV decoder: accepts stereo, 8000 Hz, 16-bit PCM. Exposes `decode_wav(bytes) -> Result<Stereo8k, AudioError)` where `Stereo8k` contains `ch0`, `ch1` as `Vec<f32>` in [-1,1] and `duration_s`. `AudioError` variants: `NotWav`, `Mono`, `WrongRate(u32)`, `WrongBits`, `Truncated`, `Other`. Decoder tolerates truncated data only when at least 1 second of samples remain; it guards against absurd headers and never allocates more than the declared sample count.
 - `audio/vad/` — VAD implementations (energy, smoothing, params). (T00X)
 - `features/` — behavioral feature extractor (F-01 .. F-22). (T00X)
 - `inference/` — ONNX/ORT model wrapper and runtime. (T00X)
