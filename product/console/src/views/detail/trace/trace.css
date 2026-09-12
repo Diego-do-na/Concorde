@@ -1,0 +1,51 @@
+/*
+ * P(SYN) TRACE lane. Shares the waveform panel's coordinate space (see
+ * ../waveform/waveform.css): this canvas spans the full panel width and
+ * draws nothing left of labelGutter, so it lines up with the waveform lanes
+ * and marker overlay above it under the one shared TimeScale.
+ */
+
+.trace-lane-row {
+  position: relative;
+  height: 84px;
+  border-bottom: 1px solid oklch(0.25 0.015 252);
+  background: oklch(0.205 0.014 252);
+}
+
+.trace-lane-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.trace-lane-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 84px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  padding-left: 10px;
+  box-sizing: border-box;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: oklch(0.6 0.012 252);
+  background: oklch(0.2 0.014 252);
+  border-right: 1px solid oklch(0.25 0.015 252);
+  pointer-events: none;
+}
+
+.trace-final-label {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  padding: 2px 6px;
+  border-radius: 2px;
+  background: oklch(0.28 0.016 252);
+  pointer-events: none;
+}
