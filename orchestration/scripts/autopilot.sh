@@ -16,14 +16,40 @@
 # proper follow-up task with `add_task.py` (depends_on this one) instead.
 # That's what keeps scopes non-overlapping across parallel claims.
 #
+# Model selection: the claimed task's suggested_model (from tasks.yaml) is
+# passed to the agent via --model, resolved per-agent by
+# resolve_model_flag() below -- see its comment for what's verified vs. not.
+#
+# Before the finish/reopen/quit prompt, prints a deterministic summary of
+# the session (task_log.py, no model call) so you don't have to scroll
+# back through the whole conversation to decide.
+#
 # Usage:
 #   ./orchestration/scripts/autopilot.sh                # owner = `git config user.name`, agent = claude
 #   ./orchestration/scripts/autopilot.sh Paul            # explicit owner
-#   ./orchestration/scripts/autopilot.sh Paul cursor     # explicit owner + agent
+#   ./orchestration/scripts/autopilot.sh Paul cursor-agent  # explicit owner + agent
 set -euo pipefail
 
 OWNER="${1:-}"
 AGENT="${2:-claude}"
+
+# See work.sh for the full rationale of this mapping (kept in sync there).
+CAUCE_CURSOR_CHEAP_MODEL="${CAUCE_CURSOR_CHEAP_MODEL:-}"
+
+resolve_model_flag() {
+  local agent="$1" suggested="$2"
+  case "$agent" in
+    claude)
+      echo "${suggested:-haiku}"
+      ;;
+    cursor-agent|cursor)
+      echo "$CAUCE_CURSOR_CHEAP_MODEL"
+      ;;
+    *)
+      echo "$suggested"
+      ;;
+  esac
+}
 
 MAIN_ROOT="$(git worktree list --porcelain | awk 'NR==1{sub(/^worktree /,""); print; exit}')"
 cd "$MAIN_ROOT/orchestration"
@@ -47,6 +73,8 @@ if ! command -v "$AGENT" >/dev/null 2>&1; then
 fi
 
 find_in_flight_claim() {
+  # Prints two lines if found: the task id, then its suggested_model
+  # (possibly empty) -- nothing at all if this owner has no claim.
   OWNER_ENV="$OWNER" python3 - <<'PY'
 import os, sys
 sys.path.insert(0, "scripts")
@@ -56,6 +84,7 @@ data = load_tasks()
 for t in data.get("tasks", []):
     if t.get("status") == "claimed" and t.get("owner") == owner:
         print(t["id"])
+        print(t.get("suggested_model") or "")
         break
 PY
 }
@@ -71,10 +100,11 @@ while true; do
     continue
   fi
 
-  EXISTING_ID="$(find_in_flight_claim || true)"
+  IN_FLIGHT="$(find_in_flight_claim || true)"
 
-  if [ -n "$EXISTING_ID" ]; then
-    TASK_ID="$EXISTING_ID"
+  if [ -n "$IN_FLIGHT" ]; then
+    TASK_ID="$(echo "$IN_FLIGHT" | sed -n '1p')"
+    SUGGESTED_MODEL="$(echo "$IN_FLIGHT" | sed -n '2p')"
     WORKTREE="$(dirname "$MAIN_ROOT")/task-$TASK_ID"
     echo "Resuming your already-claimed task $TASK_ID at $WORKTREE"
   else
@@ -89,6 +119,7 @@ while true; do
     echo "$OUTPUT"
     TASK_ID="$(echo "$OUTPUT" | sed -n 's/^Claimed \([A-Za-z0-9_-]*\):.*/\1/p')"
     WORKTREE="$(echo "$OUTPUT" | sed -n 's/^ *worktree: *//p')"
+    SUGGESTED_MODEL="$(echo "$OUTPUT" | sed -n 's/^ *suggested_model: *//p')"
   fi
 
   if [ -z "$TASK_ID" ] || [ -z "$WORKTREE" ] || [ ! -d "$WORKTREE" ]; then
@@ -96,20 +127,29 @@ while true; do
     exit 1
   fi
 
+  MODEL_VALUE="$(resolve_model_flag "$AGENT" "$SUGGESTED_MODEL")"
+  AGENT_ARGS=("$AGENT")
+  if [ -n "$MODEL_VALUE" ]; then
+    AGENT_ARGS+=(--model "$MODEL_VALUE")
+  fi
+
   while true; do
     echo ""
     echo "=================================================================="
-    echo " $TASK_ID -- launching $AGENT in $WORKTREE"
+    echo " $TASK_ID -- launching ${AGENT_ARGS[*]} in $WORKTREE"
     echo " Normal permission prompts apply. Approve/deny each action as usual."
     echo "=================================================================="
     echo ""
 
-    ( cd "$WORKTREE" && "$AGENT" ) || true   # agent's own exit code never stops the loop
+    ( cd "$WORKTREE" && "${AGENT_ARGS[@]}" ) || true   # agent's own exit code never stops the loop
 
     echo ""
     echo "------------------------------------------------------------------"
-    echo " $AGENT session for $TASK_ID ended."
-    echo " Before finishing: does the diff stay inside this task's declared scope?"
+    echo " ${AGENT_ARGS[0]} session for $TASK_ID ended. Session summary:"
+    echo ""
+    python scripts/task_log.py "$TASK_ID" 2>&1 | sed 's/^/  /' || true
+    echo ""
+    echo " Before finishing: does the above stay inside this task's declared scope?"
     echo "   cd $WORKTREE && git status && git diff --stat"
     echo "------------------------------------------------------------------"
     read -r -p "[f]inish & push, [r]eopen the agent here, [q]uit autopilot (leaves $TASK_ID claimed): " CHOICE
