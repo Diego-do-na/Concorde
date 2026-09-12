@@ -119,6 +119,11 @@ Rule: exactly three semantic states (VERIFIED, REVIEW, SYNTHETIC); never rely on
 - `/exec` → Exec
 - `/demo` → Demo
 
+View: Detail — Factors
+
+- The feature-note map lives at `product/console/src/views/detail/factors/featureNotes.ts` and maps the 23 frozen F-ids (`F-01` … `F-23`) to the canonical feature keys. The canonical keys MUST match `product/artifacts/feature_contract_fc-1.json` (contract `fc-1`). Keep the one-line notes concise; tests assert parity.
+
+
 View: Live monitor (product/console/src/views/live)
 - Columns: CALL ID · DURATION · VERDICT (dot + label) · CONFIDENCE · LATENCY · SIGNALS (behavioral/semantic/acoustic pips) · TIME
 - States: loading / empty ("No calls processed yet") / degraded (feed OFFLINE keeps last rows and shows degraded chip)
