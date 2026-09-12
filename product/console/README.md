@@ -182,7 +182,7 @@ against — and draws a local playhead line + scrub box.
 Lane border: `oklch(0.25 0.015 252)`. Lane height: 66px (×2 = panel height).
 Playhead: `INK.PLAYHEAD` (`oklch(0.95 0.006 252)`).
 
-Markers (T032)
+## View 2 — Call detail: `src/views/detail/markers/` (T032)
 
 - Vertical event markers overlay the plot using the same `TimeScale.xFor(t)` coordinate space. Markers are absolute-positioned 1px lines with `pointer-events: none` so the scrub/playhead interaction is unaffected.
 - Marker styles:
@@ -190,4 +190,51 @@ Markers (T032)
   - Interruption: solid `oklch(0.86 0.01 252)` with a filled-circle glyph.
   - Silence > 2s: dotted `oklch(0.72 0.012 252)` (3px dot / 4px gap) with a hollow-square glyph (1px `oklch(0.8 0.01 252)` border).
 - The console provides a legend (glyph + label + mono count) and an event log below the factors panel: columns `TIME (m:ss) · TYPE · DURATION`. When no events are present the log shows `No events detected`.
+
+## View 2 — Call detail: `src/views/detail/trace/` (T033)
+
+Third lane in the plot container, stacked under the waveform lanes (T031)
+and the marker overlay (T032): `P(SYN) TRACE`, 84px tall
+(`SPACING.CONFIDENCE_TRACE`), aligned to the exact same coordinate space
+(`TimeScale.xFor`, 84px label gutter) — it measures its own container width
+with the same `useElementWidth()` hook and builds its own `TimeScale` from
+`analysis.meta.duration_s`, so as long as it sits in a panel of the same
+width as the waveform lanes above it, every lane's x-axis agrees pixel for
+pixel.
+
+**Trace semantics — read this before changing the shape of this lane.** The
+plotted series is **`analysis.timeline`: the model re-scored from scratch on
+successive truncated prefixes of the call** (e.g. "verdict if the call had
+ended at t=2.4s"), not a streaming/online model updating a running belief.
+Each point is an independent, complete re-inference — there is no hidden
+state carried between points. This is why the line is drawn as a plain
+piecewise-linear path through discrete samples (`traceGeometry.ts`,
+`mapTimelinePoints`) rather than smoothed or treated as a continuous signal:
+smoothing it would visually imply a continuity the underlying computation
+doesn't have.
+
+Rendering (`drawTrace.ts`, canvas-mockable like `waveform/drawLane.ts`):
+
+- Background is split at `verdict.threshold`'s y-row: `SEMANTIC.SYNTHETIC.WASH`
+  (red) above, `SEMANTIC.VERIFIED.WASH` (green) below — `yFor(confidence)`
+  maps `[0,1]` to a px row with higher P(SYN) drawn nearer the top.
+- Threshold line: dashed (`6px`/`3px`), `INK.MUTED`, spanning the full plot
+  width at `thresholdY`.
+- The confidence path itself is stroked in the verdict tone color
+  (`toneFor(verdictOf(...))`), and the **true final point** (last entry of
+  the full, unanimated series) is always marked with a static dot in that
+  same tone color — a `.trace-final-label` badge in the top-right corner
+  echoes it as text (`pct(confidence)`), which by construction matches
+  `verdict.confidence`.
+- Draw-in: `prefers-reduced-motion: reduce` renders at full progress
+  immediately (`reveal.ts`, `initialProgress`); otherwise a 300ms linear
+  reveal (`useRevealProgress`) animates the path only — the background
+  split, threshold line, and final-point marker are always static.
+
+Scrub: this lane does **not** run its own hover/mousemove — it is a
+follower of T031's `onScrub` output. It accepts an optional `scrub:
+ScrubState | null` prop (the same type `DualChannelWaveform` emits) and, when
+present, draws a synced playhead line at `scale.xFor(scrub.t)`. Wiring the
+waveform panel's `onScrub` into this prop is the detail-view assembly task's
+job (T036), not this one's.
 
