@@ -119,6 +119,10 @@ Rule: exactly three semantic states (VERIFIED, REVIEW, SYNTHETIC); never rely on
 - `/exec` → Exec
 - `/demo` → Demo
 
+View: Live monitor (product/console/src/views/live)
+- Columns: CALL ID · DURATION · VERDICT (dot + label) · CONFIDENCE · LATENCY · SIGNALS (behavioral/semantic/acoustic pips) · TIME
+- States: loading / empty ("No calls processed yet") / degraded (feed OFFLINE keeps last rows and shows degraded chip)
+
 ## Degrade rule
 
 - The header keeps the last-known health values when `GET /health` fails. The feed chip switches to `OFFLINE` and dependency chips become amber to indicate degraded state. This ensures the header never blanks (NFR-012).
