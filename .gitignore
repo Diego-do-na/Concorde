@@ -12,8 +12,10 @@ orchestration/.cauce.lock
 orchestration/.git.lock
 
 # CONCORDE — altur-challenge dataset (§13.4): never committed, never shipped.
-audio/
-turns/
+# Anchored to repo root: unanchored `audio/`/`turns/` would also match
+# source dirs like product/api/src/audio/ and silently swallow real code.
+/audio/
+/turns/
 manifest.csv
 *.wav
 ml/eda/*.png
