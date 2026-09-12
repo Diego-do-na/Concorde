@@ -507,10 +507,10 @@ tasks:
   depends_on:
   - T009
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T010
+  claimed_at: '2026-09-12T23:36:10+00:00'
   done_at: null
 - id: T011
   title: '[Paul] VAD stage B: hysteresis, min-duration smoothing, turns.json-shaped
