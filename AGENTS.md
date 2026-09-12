@@ -155,6 +155,18 @@ pytest                                           # Python-side tests
     it. If it's interrupted (or you answer "quit") with a task still
     claimed, re-running it resumes that same task's worktree instead of
     claiming a new one.
+  - `./orchestration/scripts/fleet.sh [owner] [agent...]` — runs one
+    `autopilot.sh` loop per agent CLI **in parallel** (auto-detects
+    `claude`/`cursor` on PATH if none given), each in its own Terminal.app
+    window (macOS; prints the commands to run yourself otherwise), each
+    under its own Cauce owner identity (`<owner>-<agent>`) so the two
+    loops never mistake each other's in-flight claim for their own. When
+    one agent finishes its task before the other, it grabs the next
+    eligible one immediately instead of waiting. Safe by construction —
+    verified under an actual concurrent race, not just sequential turns —
+    because Cauce's scope-conflict check and its pull/rebase/retry on
+    every `tasks.yaml` write already serialize concurrent claims
+    correctly; nothing here bypasses permission prompts.
   - `./orchestration/scripts/dashboard.sh` — one person runs this to serve
     the read-only board monitor at `http://localhost:8000`.
   - The raw Python entry points (`claim_task.py`, `finish_task.py`,
