@@ -123,7 +123,7 @@ PY
 # if one happens, this stops rather than launching on a half-rebased tree.
 sync_worktree_with_main() {
   local worktree="$1"
-  git -C "$worktree" fetch origin --quiet && git -C "$worktree" rebase origin/main --quiet
+  python scripts/locked_git.py -C "$worktree" fetch origin --quiet && python scripts/locked_git.py -C "$worktree" rebase origin/main --quiet
 }
 
 echo "Cauce autopilot started for '$OWNER' (agent: $AGENT)."
@@ -131,7 +131,7 @@ echo "Ctrl+C at any point leaves the current task exactly as it is."
 echo ""
 
 while true; do
-  if ! git pull --quiet; then
+  if ! python scripts/locked_git.py pull --quiet; then
     echo "warning: git pull failed, retrying in 10s..." >&2
     sleep 10
     continue

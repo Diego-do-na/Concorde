@@ -185,6 +185,13 @@ pytest                                           # Python-side tests
     checkout, never from inside a task's own worktree (they refuse with a
     clear error if run from the wrong place, since every git operation
     they do — including the merge into `main` — has to happen there).
+- Every git command that mutates refs (pull/fetch/push/rebase/merge/worktree
+  add) in the scripts runs under one machine-wide lock, `orchestration/.git.lock`
+  (`common.local_repo_lock()`, re-entrant; shell scripts go through
+  `orchestration/scripts/locked_git.py`). This is what lets two `autopilot.sh`
+  loops (claude + cursor-agent under `fleet.sh`) share one checkout without
+  "cannot lock ref" / "divergent branches" collisions. If you add a git call to
+  a script, route it through `run_git` or `locked_git.py`.
 - One git branch per task: `task/<id>`.
 - Every task's `scope` in `tasks.yaml` is a set of non-overlapping file
   paths (§13.2 of the spec) — this is what lets Cauce grant parallel claims

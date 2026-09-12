@@ -99,7 +99,7 @@ PY
 # of a half-rebased worktree.
 sync_worktree_with_main() {
   local worktree="$1"
-  git -C "$worktree" fetch origin --quiet && git -C "$worktree" rebase origin/main --quiet
+  python scripts/locked_git.py -C "$worktree" fetch origin --quiet && python scripts/locked_git.py -C "$worktree" rebase origin/main --quiet
 }
 
 MAIN_ROOT="$(git worktree list --porcelain | awk 'NR==1{sub(/^worktree /,""); print; exit}')"

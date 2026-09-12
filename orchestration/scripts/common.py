@@ -93,11 +93,27 @@ load_dotenv(ORCHESTRATION_ROOT / ".env", override=False)
 # local (same-machine) mutual exclusion
 # ---------------------------------------------------------------------------
 
-_LOCAL_LOCK_FILE = ORCHESTRATION_ROOT / ".cauce.lock"
+_LOCAL_LOCK_FILE = ORCHESTRATION_ROOT / ".git.lock"
+
+# Re-entrancy bookkeeping for local_repo_lock(): flock() on a *second* fd of
+# the same file would block against our own first fd, so nested acquisitions
+# inside one process (e.g. push_tasks_with_retry -> run_git, which now locks
+# every ref-mutating git command on its own) must be counted, not re-taken.
+_lock_depth = 0
+_lock_fd = None
+
+# git subcommands that only read: safe to run without the lock. Everything
+# else (pull/fetch/push/merge/rebase/checkout/reset/commit/add/worktree add|
+# remove/branch -d/clone-from-this-repo/...) mutates refs, the index or the
+# object store and MUST hold the lock -- two autopilot loops (claude +
+# cursor-agent under fleet.sh) share this one checkout and otherwise collide
+# with "cannot lock ref" / "divergent branches" the moment they pull at once.
+_READ_ONLY_GIT = {"config", "rev-parse", "status", "log", "rev-list", "symbolic-ref",
+                  "diff", "show", "ls-files", "ls-remote", "cat-file", "describe"}
 
 
 @contextlib.contextmanager
-def local_repo_lock(timeout: float = 30.0):
+def local_repo_lock(timeout: float = 120.0):
     """Serializes the full pull -> mutate -> add -> commit -> push sequence
     across multiple Cauce processes running against the SAME local
     checkout (e.g. two terminals both cd'd into one clone, or autopilot.sh
@@ -117,8 +133,16 @@ def local_repo_lock(timeout: float = 30.0):
     since another local process holding this lock is expected to release
     it in well under a second.
     """
+    global _lock_depth, _lock_fd
     if fcntl is None:  # pragma: no cover — non-POSIX fallback: no locking
         yield
+        return
+    if _lock_depth > 0:  # re-entrant: already held by this process
+        _lock_depth += 1
+        try:
+            yield
+        finally:
+            _lock_depth -= 1
         return
     _LOCAL_LOCK_FILE.parent.mkdir(parents=True, exist_ok=True)
     _LOCAL_LOCK_FILE.touch(exist_ok=True)
@@ -137,8 +161,12 @@ def local_repo_lock(timeout: float = 30.0):
                         f"is actually running, delete that file and retry"
                     )
                 time.sleep(0.05)
+        _lock_depth = 1
+        _lock_fd = fd
         yield
     finally:
+        _lock_depth = 0
+        _lock_fd = None
         fcntl.flock(fd, fcntl.LOCK_UN)
         fd.close()
 
@@ -170,6 +198,14 @@ def run_git(args: list[str], cwd: Path | None = None, check: bool = True, timeou
     concurrent claims from two terminals on one machine would crash
     outright instead of just being slightly delayed.
     """
+    subcommand = next((a for a in args if not a.startswith("-") and a != "-C"), "")
+    if subcommand in _READ_ONLY_GIT or (len(args) >= 2 and args[0] == "worktree" and args[1] == "list"):
+        return _run_git_unlocked(args, cwd=cwd, check=check, timeout=timeout)
+    with local_repo_lock():
+        return _run_git_unlocked(args, cwd=cwd, check=check, timeout=timeout)
+
+
+def _run_git_unlocked(args: list[str], cwd: Path | None = None, check: bool = True, timeout: int = 60) -> subprocess.CompletedProcess:
     result: subprocess.CompletedProcess | None = None
     for attempt, delay in enumerate((0.0, *_INDEX_LOCK_RETRY_DELAYS)):
         if delay:

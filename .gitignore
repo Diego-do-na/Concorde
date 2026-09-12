@@ -9,6 +9,7 @@ orchestration/.agents/
 orchestration/SETUP.md
 orchestration/.env
 orchestration/.cauce.lock
+orchestration/.git.lock
 
 # CONCORDE — altur-challenge dataset (§13.4): never committed, never shipped.
 audio/
