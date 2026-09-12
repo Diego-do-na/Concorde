@@ -126,6 +126,8 @@ View: Live monitor (product/console/src/views/live)
 ## Degrade rule
 
 - The header keeps the last-known health values when `GET /health` fails. The feed chip switches to `OFFLINE` and dependency chips become amber to indicate degraded state. This ensures the header never blanks (NFR-012).
+ 
+- Degraded ≠ zero: when a dependent signal is unavailable or explicitly marked unavailable the UI must render it as "DEGRADED" with a hatch background (not as `0.00`). See screenshot: docs/screenshots/degraded-not-zero.png
 
 ## Mocks and API client
 
