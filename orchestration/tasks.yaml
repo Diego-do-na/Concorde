@@ -1308,11 +1308,11 @@ tasks:
   depends_on:
   - T031
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T032
   claimed_at: '2026-09-12T23:35:52+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:39:11+00:00'
 - id: T033
   title: '[Néstor] Detail view part 3: confidence-over-time trace lane (P(SYN))'
   description: '(a) BUILD — product/console/src/views/detail/trace/: third canvas
