@@ -87,6 +87,21 @@ if task:
 PY
 }
 
+# sync_worktree_with_main WORKTREE -> rebases that worktree's branch onto
+# the latest origin/main before the agent starts. Always run this right
+# before launching, never skipped: finish_task.py now merges finished
+# tasks straight into main, so any task whose worktree was created (or
+# last synced) before a dependency finished needs this to actually see
+# that code -- tasks.yaml saying a dependency is "done" isn't enough on
+# its own, the files have to be pulled in too. Non-overlapping scopes
+# make a real conflict here unlikely, but if one happens this stops and
+# tells you to resolve it by hand rather than launching the agent on top
+# of a half-rebased worktree.
+sync_worktree_with_main() {
+  local worktree="$1"
+  git -C "$worktree" fetch origin --quiet && git -C "$worktree" rebase origin/main --quiet
+}
+
 MAIN_ROOT="$(git worktree list --porcelain | awk 'NR==1{sub(/^worktree /,""); print; exit}')"
 cd "$MAIN_ROOT/orchestration"
 
@@ -123,6 +138,14 @@ if ! command -v "$AGENT" >/dev/null 2>&1; then
   echo "  $WORKTREE"
   echo "cd there and launch your agent manually."
   exit 0
+fi
+
+echo "Syncing worktree with the latest main..."
+if ! sync_worktree_with_main "$WORKTREE"; then
+  echo "error: could not rebase $WORKTREE onto origin/main (conflict?). Resolve by hand:" >&2
+  echo "  cd $WORKTREE && git status" >&2
+  echo "then launch the agent yourself once it's clean." >&2
+  exit 1
 fi
 
 MODEL_VALUE="$(resolve_model_flag "$AGENT" "$SUGGESTED_MODEL")"

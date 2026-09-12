@@ -114,6 +114,18 @@ if task:
 PY
 }
 
+# sync_worktree_with_main WORKTREE -> rebases onto the latest origin/main
+# right before every single launch (first claim, resume, AND reopen --
+# "siempre, siempre"). finish_task.py now merges finished tasks straight
+# into main, so any worktree that's been sitting a while needs this to
+# actually see a dependency's code once it lands, not just its status in
+# tasks.yaml. Non-overlapping scopes make a real conflict here unlikely;
+# if one happens, this stops rather than launching on a half-rebased tree.
+sync_worktree_with_main() {
+  local worktree="$1"
+  git -C "$worktree" fetch origin --quiet && git -C "$worktree" rebase origin/main --quiet
+}
+
 echo "Cauce autopilot started for '$OWNER' (agent: $AGENT)."
 echo "Ctrl+C at any point leaves the current task exactly as it is."
 echo ""
@@ -166,6 +178,15 @@ while true; do
   fi
 
   while true; do
+    echo ""
+    echo "Syncing worktree with the latest main..."
+    if ! sync_worktree_with_main "$WORKTREE"; then
+      echo "error: could not rebase $WORKTREE onto origin/main (conflict?). Resolve by hand:" >&2
+      echo "  cd $WORKTREE && git status" >&2
+      echo "$TASK_ID stays claimed; re-run autopilot.sh once it's clean." >&2
+      exit 1
+    fi
+
     echo ""
     echo "=================================================================="
     echo " $TASK_ID -- launching ${AGENT_ARGS[0]} (model: ${MODEL_VALUE:-agent default}) in $WORKTREE"

@@ -11,10 +11,16 @@ rather than through whatever branch a worktree happens to be on.
 
 Flow:
     1. Look up the task, make sure it's status=claimed and has a branch.
-    2. check_merge.py: would `branch` merge cleanly into main?
+    2. Refuse if the branch has no commits beyond main — nothing to
+       finish, and without this check a task can be marked done with
+       zero actual work (its "empty" branch merges "cleanly" trivially).
+    3. check_merge.py: would `branch` merge cleanly into main?
        - CONFLICT: push nothing, tasks.yaml is left untouched, notify the
          task's owner specifically, exit non-zero.
-       - CLEAN: push the work branch, then atomically flip the task to
+       - CLEAN: push the work branch, merge it into main FOR REAL and
+         push main (merge_branch_to_main — this is what actually gets the
+         task's files into the tree everyone/every new worktree branches
+         from, not just a status flip), then atomically flip the task to
          status=done/done_at=now in tasks.yaml (same retry pattern as
          claim_task.py), notify Discord, and print any tasks that just
          became unblocked (their depends_on are now all satisfied) — this
@@ -29,11 +35,13 @@ from typing import Any
 from check_merge import check_merge_conflict
 from common import (
     CauceError,
+    branch_has_real_work,
     dependencies_satisfied,
     fail,
     find_task,
     load_tasks,
     local_repo_lock,
+    merge_branch_to_main,
     now_iso,
     push_tasks_with_retry,
     run_git,
@@ -81,6 +89,15 @@ def main() -> None:
             fail(f"task {task_id} has no branch recorded")
             return
 
+        if not branch_has_real_work(branch):
+            fail(
+                f"{branch} has no commits beyond main — nothing to finish. "
+                f"Did the agent actually do the work and commit it? "
+                f"(cd into the task's worktree, check `git log`/`git status`, "
+                f"commit the real work, then re-run finish_task.py)"
+            )
+            return
+
         print(f"Checking whether {branch} merges cleanly into main...")
         conflict = check_merge_conflict(branch)
     except CauceError as exc:
@@ -104,6 +121,13 @@ def main() -> None:
         push_branch = run_git(["push", "origin", f"{branch}:{branch}"], check=False)
         if push_branch.returncode != 0:
             raise CauceError(f"could not push {branch}: {push_branch.stderr.strip()}")
+
+        # This is what actually lands the task's files in main -- without
+        # it, every finished task stays stranded on its own branch forever
+        # and no one (least of all the next agent claiming a dependent
+        # task) ever sees the result outside that one branch.
+        print(f"Merging {branch} into main...")
+        merge_branch_to_main(branch, commit_message=f"merge: {task_id} ({task['title']}) into main")
 
         def mutate(data: dict[str, Any]) -> dict[str, Any]:
             current = find_task(data, task_id)

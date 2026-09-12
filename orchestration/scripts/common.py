@@ -274,6 +274,85 @@ def push_tasks_with_retry(mutate_fn, commit_message: str, max_attempts: int = 5)
     raise CauceError("unreachable: push_tasks_with_retry exhausted attempts")
 
 
+def _default_base_branch() -> str:
+    """Same intent as check_merge.py's own helper, but against the real
+    origin (not a throwaway clone)."""
+    for candidate in ("main", "master"):
+        exists = run_git(["rev-parse", "--verify", f"origin/{candidate}"], check=False)
+        if exists.returncode == 0:
+            return candidate
+    head = run_git(["symbolic-ref", "refs/remotes/origin/HEAD"], check=False)
+    if head.returncode == 0:
+        return head.stdout.strip().rsplit("/", 1)[-1]
+    raise CauceError("could not determine the base branch (tried main, master, origin/HEAD)")
+
+
+def branch_has_real_work(branch: str, base: str | None = None) -> bool:
+    """True if `branch` has at least one commit beyond where it diverged
+    from the base branch's current tip on origin. Used to refuse finishing
+    a task whose worktree never actually got any work committed — without
+    this, a task can be marked done (its branch merges "cleanly" because
+    there's nothing to conflict with) with zero real content."""
+    run_git(["fetch", "origin", "--quiet"], check=False)
+    base = base or _default_base_branch()
+    result = run_git(["rev-list", "--count", f"origin/{base}..{branch}"], check=False)
+    if result.returncode != 0:
+        # Can't tell (e.g. branch not found locally yet) -- don't block
+        # finish on an inconclusive check; check_merge_conflict and the
+        # merge step below will surface any real problem.
+        return True
+    try:
+        return int(result.stdout.strip()) > 0
+    except ValueError:
+        return True
+
+
+def merge_branch_to_main(branch: str, commit_message: str, max_attempts: int = 5) -> None:
+    """Actually merges `branch` into the base branch (main) in THIS
+    checkout and pushes it for real -- as opposed to check_merge_conflict,
+    which only tests in a throwaway clone and never touches real history.
+
+    Runs under local_repo_lock() with the same fetch/merge/push-with-retry
+    shape as push_tasks_with_retry: a push rejected because someone else
+    merged first is expected and retried (fresh fetch, redo the merge,
+    push again). A real merge conflict is NOT retried -- retrying can't
+    fix content that actually collides; it's raised immediately so a human
+    resolves it by hand. That should be rare given tasks.yaml's
+    non-overlapping scopes, and check_merge_conflict already screened for
+    it against a slightly earlier snapshot of main.
+    """
+    with local_repo_lock():
+        base = _default_base_branch()
+        for attempt in range(1, max_attempts + 1):
+            run_git(["fetch", "origin", "--quiet"])
+            run_git(["checkout", "--quiet", base])
+            run_git(["reset", "--hard", f"origin/{base}"])
+            merge = run_git(["merge", "--no-ff", f"origin/{branch}", "-m", commit_message], check=False)
+            if merge.returncode != 0:
+                run_git(["merge", "--abort"], check=False)
+                raise CauceError(
+                    f"merging {branch} into {base} produced a real conflict "
+                    f"(unexpected — check_merge_conflict said it was clean "
+                    f"against an earlier snapshot of {base}). Resolve by hand: "
+                    f"git checkout {base} && git merge {branch}"
+                )
+            push = run_git(["push", "origin", base], check=False)
+            if push.returncode == 0:
+                return
+            if attempt == max_attempts:
+                raise CauceError(
+                    f"could not push {base} after merging {branch}, "
+                    f"after {max_attempts} attempts (someone keeps winning the race)"
+                )
+            print(
+                f"  ({base} push race lost — someone else merged first; "
+                f"re-fetching and retrying, attempt {attempt + 1}/{max_attempts})",
+                file=sys.stderr,
+            )
+            run_git(["reset", "--hard", f"origin/{base}"], check=False)
+    raise CauceError("unreachable: merge_branch_to_main exhausted attempts")
+
+
 # ---------------------------------------------------------------------------
 # tasks.yaml I/O
 # ---------------------------------------------------------------------------
