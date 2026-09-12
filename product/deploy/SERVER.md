@@ -183,7 +183,7 @@ curl -s https://REPO_URL/product/deploy/bootstrap.sh | ssh -p 2222 root@100.93.1
 
 ## SSH Key Management
 
-**Admin Access Team** (Tailscale, private network):
+### Root (Admin) Access Team (Tailscale, private network):
 - Diego: ✓ Keys already installed
 - Paul: ⚠️ **TODO** — append public key to `/root/.ssh/authorized_keys`
 - Néstor: ⚠️ **TODO** — append public key to `/root/.ssh/authorized_keys`
@@ -194,6 +194,38 @@ ssh -p 2222 root@100.93.147.55
 # On server:
 echo "PUBLIC_KEY_HERE" >> /root/.ssh/authorized_keys
 chmod 600 /root/.ssh/authorized_keys
+```
+
+### GitHub Deploy Key (for `concorde` user)
+
+**Generated**: 2026-09-12 (T024 deployment)  
+**Type**: Ed25519 SSH key  
+**Location on server**: `/opt/concorde/.ssh/id_ed25519` (private) and `/opt/concorde/.ssh/id_ed25519.pub` (public)  
+**Purpose**: Allows deploy.sh to clone/update code from private GitHub repository
+
+**Public key** (register on GitHub):
+```
+ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFxG4F15a27mfJcHX06IDi8QxFNVxA5FLqJbvQLys89Z concorde@getconcorde.tech
+```
+
+**GitHub registration** (Diego or Paul):
+1. Log into GitHub account (Diego-do-na or Néstor's)
+2. Navigate to Concorde repo → Settings → Deploy Keys
+3. Click "Add deploy key"
+4. Title: `CONCORDE Deploy (Vultr)`
+5. Paste public key above
+6. Check "Allow write access" (optional, only needed if deploy script must push)
+
+**Verification** (after registration):
+```bash
+ssh -p 2222 root@100.93.147.55 'su - concorde -c "ssh -T git@github.com"'
+# Should show: "Hi Diego-do-na/Concorde! You have read access to this repository."
+```
+
+**Known hosts**:
+```bash
+ssh -p 2222 root@100.93.147.55 'cat /opt/concorde/.ssh/known_hosts | grep github.com'
+# Should show github.com's public host keys (added during T024 deploy)
 ```
 
 ---

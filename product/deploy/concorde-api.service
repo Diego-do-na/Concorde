@@ -31,7 +31,7 @@ EnvironmentFile=/opt/concorde/.env
 
 # ---- Process management ----
 Type=simple
-ExecStart=/opt/concorde/bin/concorde-api
+ExecStart=/opt/concorde/bin/concorde
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=concorde-api
