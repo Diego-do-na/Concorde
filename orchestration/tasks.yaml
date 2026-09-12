@@ -1364,11 +1364,11 @@ tasks:
   depends_on:
   - T006
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T034
   claimed_at: '2026-09-12T23:25:26+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:29:18+00:00'
 - id: T035
   title: '[Néstor] Detail view part 5: top factors table, rationale, stage timings,
     meta'
