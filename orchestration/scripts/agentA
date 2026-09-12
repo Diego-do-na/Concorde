@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+# agentA — a deliberately trivial stand-in for `claude`/`cursor`, used ONLY
+# to canary-test autopilot.sh / fleet.sh's orchestration mechanics (claim
+# -> launch -> agent session -> exit -> human review -> finish -> claim
+# next) without spending real agent sessions on a one-line file write.
+#
+# Does exactly what a canary task's description asks: writes
+# canary/<id>.txt with "success! - <ID> - <owner>", commits, and exits —
+# simulating the end of an agent session so the human's autopilot.sh
+# review prompt fires immediately, just like it would after a real agent
+# finishes.
+#
+# NOT used for real CONCORDE work. Delete this and agentB once the canary
+# test is done.
+#
+# Usage (as the $AGENT argument):
+#   ./orchestration/scripts/autopilot.sh <owner> ./orchestration/scripts/agentA
+#   ./orchestration/scripts/fleet.sh <owner> agentA agentB   (with orchestration/scripts on PATH)
+set -euo pipefail
+
+BRANCH="$(git branch --show-current)"        # e.g. task/C-001
+ID="${BRANCH#task/}"                          # C-001
+FILE_ID="$(echo "$ID" | tr '[:upper:]' '[:lower:]' | tr -d '-')"   # c001
+OWNER="$(git config user.name || echo unknown)"
+
+echo "[$(basename "$0")] working on $ID as $OWNER in $(pwd)"
+mkdir -p canary
+echo "success! - $ID - $OWNER" > "canary/${FILE_ID}.txt"
+git add -A
+git commit -q -m "$ID: canary marker (via $(basename "$0"))"
+echo "[$(basename "$0")] committed, exiting (simulated agent session end)."
