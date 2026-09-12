@@ -1,0 +1,28 @@
+{
+  "contract": "fc-1",
+  "features": [
+    "resp_latency_mean",
+    "resp_latency_median",
+    "resp_latency_std",
+    "resp_latency_cv",
+    "latency_monotony_index",
+    "resp_latency_min",
+    "overlap_count",
+    "overlap_rate_per_min",
+    "overlap_total_dur",
+    "caller_bargein_count",
+    "recovery_delay_mean",
+    "recovery_delay_cv",
+    "recovery_abort_ratio",
+    "caller_turn_dur_mean",
+    "caller_turn_dur_std",
+    "caller_turn_dur_cv",
+    "short_turn_ratio",
+    "fragmentation_rate",
+    "caller_speech_ratio",
+    "speech_balance",
+    "silence_break_delay_mean",
+    "silence_break_delay_cv",
+    "turn_count_caller"
+  ]
+}
