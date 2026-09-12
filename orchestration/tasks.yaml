@@ -140,8 +140,8 @@ tasks:
   - canary/c003.txt
   depends_on: []
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: paul-claude
   branch: task/C-008
   claimed_at: '2026-09-12T16:51:59+00:00'
-  done_at: null
+  done_at: '2026-09-12T16:54:03+00:00'
