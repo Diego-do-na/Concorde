@@ -1247,11 +1247,11 @@ tasks:
   depends_on:
   - T006
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T030
   claimed_at: '2026-09-12T23:22:32+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:25:23+00:00'
 - id: T031
   title: '[Néstor] Detail view part 1: dual-channel synchronized waveform canvases
     + shared time scale'
