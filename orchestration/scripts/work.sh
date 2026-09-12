@@ -27,10 +27,12 @@ AGENT="${2:-claude}"
 # default).
 #
 # claude: suggested_model values pass straight through as Claude Code's
-# own --model aliases (haiku/sonnet/opus/fable) -- confirmed working
-# empirically (`claude --model haiku -p ...` tested headless). Empty/unset
-# falls back to "haiku": most Cauce tasks are mechanical and don't need a
-# bigger model; tasks that do should set suggested_model explicitly.
+# own --model aliases (haiku/sonnet/opus/fable) -- the alias itself was
+# confirmed valid via a separate one-off headless check (`-p`), OUTSIDE
+# this script; the actual launch below stays fully interactive, --model
+# is the only thing added to it. Empty/unset falls back to "haiku": most
+# Cauce tasks are mechanical and don't need a bigger model; tasks that do
+# should set suggested_model explicitly.
 #
 # cursor-agent: NOT verified. cursor-agent requires `agent login` (it was
 # unauthenticated on the machine this was built on, so its actual model
