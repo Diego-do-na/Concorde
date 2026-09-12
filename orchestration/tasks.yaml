@@ -14,11 +14,11 @@ tasks:
   - canary/c001.txt
   depends_on: []
   suggested_model: ''
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/C-001
   claimed_at: '2026-09-12T14:52:53+00:00'
-  done_at: null
+  done_at: '2026-09-12T15:02:26+00:00'
 - id: C-002
   title: 'Canary: write c002.txt'
   description: 'Create the file canary/c002.txt containing exactly the line "success!
