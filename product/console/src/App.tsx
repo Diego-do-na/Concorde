@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ShellProvider } from "./app/shellContext";
 import Header from "./app/Header";
 import Nav from "./app/Nav";
+import Live from "./views/live/Live";
 
 const Placeholder: React.FC<{text:string}> = ({text}) => (
   <div style={{padding:20}}>{text}</div>
@@ -16,7 +17,7 @@ export default function App(){
         <Nav />
         <main>
           <Routes>
-            <Route path="/" element={<Placeholder text="Monitor view lands with task Txxx" />} />
+            <Route path="/" element={<Live />} />
             <Route path="/calls/:id" element={<Placeholder text="Detail view lands with task Txxx" />} />
             <Route path="/exec" element={<Placeholder text="Exec view lands with task Txxx" />} />
             <Route path="/demo" element={<Placeholder text="Demo view lands with task Txxx" />} />
