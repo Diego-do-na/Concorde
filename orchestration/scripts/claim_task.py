@@ -32,6 +32,7 @@ from typing import Any
 from common import (
     CauceError,
     REPO_ROOT,
+    assert_main_checkout,
     dependencies_satisfied,
     fail,
     find_scope_conflict,
@@ -102,6 +103,7 @@ def main() -> None:
     owner = args.owner or get_git_user_name()
 
     try:
+        assert_main_checkout()
         # No standalone pull here on purpose: claim_next_task() ->
         # push_tasks_with_retry() already pulls fresh under
         # local_repo_lock() before deciding what's eligible. An extra

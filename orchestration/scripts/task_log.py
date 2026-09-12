@@ -129,11 +129,6 @@ def print_summary(task_id: str) -> None:
     transcript = _most_recent_transcript(claude_dir)
 
     if transcript is None:
-        agent_hint = ""
-        # A cheap heuristic, not a hard fact: if the task's own scope work
-        # was ever done with cursor-agent, there is no known transcript
-        # location for it (see module docstring) -- say so plainly rather
-        # than just reporting "not found".
         print(f"No Claude Code transcript found for task {task_id}.")
         print(f"  expected worktree: {worktree}")
         print(f"  expected under:    {claude_dir}")

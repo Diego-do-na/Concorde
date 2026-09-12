@@ -216,6 +216,38 @@ def get_git_user_name() -> str:
     return name or "unknown"
 
 
+def assert_main_checkout() -> None:
+    """Raise CauceError if REPO_ROOT is not actually the main worktree.
+
+    REPO_ROOT is computed from the CURRENT working directory (`git
+    rev-parse --show-toplevel`), so if any of claim_task.py / finish_task.py
+    / add_task.py / poller.py is invoked from inside a task's own worktree
+    instead of the main checkout, every git operation here (pull/commit/
+    push, `git checkout main`) would silently happen on THAT WORKTREE'S
+    OWN BRANCH — not main. Before this check existed that meant a claim or
+    finish could land its commit on `task/<id>` instead of `main` without
+    any error at all; now it's refused up front with a clear fix instead.
+
+    `git worktree list`'s first line is always the main/original worktree
+    (a git guarantee, not a convention this repo happens to follow), so
+    that's what REPO_ROOT is compared against.
+    """
+    result = run_git(["worktree", "list", "--porcelain"], check=False)
+    if result.returncode != 0 or not result.stdout.strip():
+        return  # can't tell; let the real operation fail on its own if it's going to
+    first_line = result.stdout.splitlines()[0]
+    if not first_line.startswith("worktree "):
+        return
+    main_worktree = Path(first_line[len("worktree "):]).resolve()
+    if main_worktree != REPO_ROOT.resolve():
+        raise CauceError(
+            f"this must be run from the main checkout ({main_worktree}), "
+            f"not from {REPO_ROOT} — use work.sh/autopilot.sh/fleet.sh/finish.sh "
+            f"(they already cd to the main checkout for you), or `cd {main_worktree}` "
+            f"and run it from there directly"
+        )
+
+
 def push_tasks_with_retry(mutate_fn, commit_message: str, max_attempts: int = 5) -> dict:
     """The core "atomic edit of tasks.yaml" loop used by claim_task.py,
     finish_task.py, and add_task.py.

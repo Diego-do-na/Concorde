@@ -24,6 +24,7 @@ import time
 from common import (
     CauceError,
     ORCHESTRATION_ROOT,
+    assert_main_checkout,
     dependencies_satisfied,
     find_scope_conflict,
     get_git_user_name,
@@ -109,6 +110,13 @@ def main() -> None:
     args = parser.parse_args()
 
     owner = args.owner or get_git_user_name()
+
+    try:
+        assert_main_checkout()
+    except CauceError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(1)
+
     print(f"Cauce poller started for {owner!r} (interval={args.interval}s). Ctrl+C to stop.")
 
     try:

@@ -35,6 +35,7 @@ from typing import Any
 from check_merge import check_merge_conflict
 from common import (
     CauceError,
+    assert_main_checkout,
     branch_has_real_work,
     dependencies_satisfied,
     fail,
@@ -70,6 +71,7 @@ def main() -> None:
     task_id = args.task_id
 
     try:
+        assert_main_checkout()
         # Under the same local lock push_tasks_with_retry uses below: this
         # read needs to be fresh (we're about to look up the task's branch
         # and test-merge it), and an unlocked pull here could otherwise

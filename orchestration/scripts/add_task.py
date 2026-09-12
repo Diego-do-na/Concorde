@@ -18,7 +18,7 @@ from __future__ import annotations
 import argparse
 from typing import Any
 
-from common import CauceError, fail, load_tasks, push_tasks_with_retry, tasks_by_id
+from common import CauceError, assert_main_checkout, fail, load_tasks, push_tasks_with_retry, tasks_by_id
 
 
 def add_task(
@@ -31,6 +31,7 @@ def add_task(
 ) -> str:
     """Validates, appends, commits, and pushes a new task. Returns the new
     task's id. Raises CauceError on any validation or git failure."""
+    assert_main_checkout()
     depends_on = depends_on or []
     if not title.strip():
         raise CauceError("title is required")

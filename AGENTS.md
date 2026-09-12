@@ -137,15 +137,24 @@ pytest                                           # Python-side tests
   Cauce owner).
 - **The daily loop, one command each way**:
   - `./orchestration/scripts/work.sh [owner] [agent]` — claims the next
-    eligible task, creates its worktree (as a sibling of the repo, outside
-    `orchestration/`), and launches the agent (`claude` by default, pass
-    `cursor-agent` as the second arg) directly inside it. Safe to run from
-    anywhere (it always resolves the main checkout first).
-  - `./orchestration/scripts/finish.sh <task-id>` — marks a claimed task
-    done. Safe to run from inside the task's own worktree (the common
-    case) or from the main checkout; it always operates on
-    `orchestration/tasks.yaml` at main, per `finish_task.py`'s own
-    requirement.
+    eligible task, rebases its worktree onto the latest `origin/main`
+    (always, every launch — a dependency's merged code needs this to
+    actually show up in your files, not just in `tasks.yaml`'s status),
+    and launches the agent (`claude` by default, pass `cursor-agent` as
+    the second arg) directly inside it with `--model` set from the task's
+    `suggested_model` and the task's title+description as its initial
+    prompt. Safe to run from anywhere (it always resolves the main
+    checkout first).
+  - `./orchestration/scripts/finish.sh <task-id>` — refuses if the branch
+    has no commits beyond `main` (nothing to finish), then if it merges
+    cleanly: pushes the branch, **merges it into `main` for real and
+    pushes `main`** (not just a status flip — this is what actually lands
+    your code where every new worktree branches from and where anyone
+    browses it on GitHub), then marks the task done in `tasks.yaml`. Safe
+    to run from inside the task's own worktree (the common case) or from
+    the main checkout. Run `python orchestration/scripts/task_log.py
+    <task-id>` first if you want a deterministic summary of what a
+    session actually did before finishing it.
   - `./orchestration/scripts/autopilot.sh [owner] [agent]` — the loop
     version of `work.sh`: claims a task, launches the agent interactively
     (normal permission prompts, nothing bypassed), and when the agent's
@@ -170,9 +179,12 @@ pytest                                           # Python-side tests
   - `./orchestration/scripts/dashboard.sh` — one person runs this to serve
     the read-only board monitor at `http://localhost:8000`.
   - The raw Python entry points (`claim_task.py`, `finish_task.py`,
-    `poller.py`, `add_task.py`, `notify_discord.py`, `check_merge.py`)
-    still work directly under `orchestration/scripts/` if you need more
-    control than the wrappers give.
+    `poller.py`, `add_task.py`, `notify_discord.py`, `check_merge.py`,
+    `task_log.py`) still work directly under `orchestration/scripts/` if
+    you need more control than the wrappers give — but only from the main
+    checkout, never from inside a task's own worktree (they refuse with a
+    clear error if run from the wrong place, since every git operation
+    they do — including the merge into `main` — has to happen there).
 - One git branch per task: `task/<id>`.
 - Every task's `scope` in `tasks.yaml` is a set of non-overlapping file
   paths (§13.2 of the spec) — this is what lets Cauce grant parallel claims
@@ -203,10 +215,16 @@ pytest                                           # Python-side tests
 
 - Full spec (source of truth for anything not covered above):
   `docs/CONCORDE_Especificacion_Tecnica_v1.0.pdf`
-- Task board: `orchestration/tasks.yaml` — currently a small smoke-test
-  board (verifying Cauce itself works with 3 agents in parallel); the real
+- Task board: `orchestration/tasks.yaml`. A reference copy of the original
   23-task board from spec §13.2 is saved at
-  `orchestration/tasks.concorde-v1-seed.yaml` for reference/fallback.
+  `orchestration/tasks.concorde-v1-seed.yaml` in case it's useful to
+  cross-check coverage against whatever board is live.
+- Each task's `suggested_model` (claude aliases: `haiku`/`sonnet`/`opus`/
+  `fable`) is forwarded to `claude` as `--model`; empty/unset falls back to
+  `haiku`. cursor-agent uses a completely different model catalog (`gpt-
+  5.4-nano-low`, `claude-sonnet-5-high`, etc. — see `cursor-agent
+  --list-models`), so Claude-style values are never forwarded to it — it
+  runs on `CAUCE_CURSOR_CHEAP_MODEL` (default `gpt-5-mini`) instead.
 - Environment variables: §18.2 of the spec (`CONCORDE_MODEL_PATH`,
   `CONCORDE_FEATURE_CONTRACT`, `CONCORDE_THRESHOLD`,
   `CONCORDE_SEMANTIC_ENABLED`, `CONCORDE_SEMANTIC_TIMEOUT_MS`,
