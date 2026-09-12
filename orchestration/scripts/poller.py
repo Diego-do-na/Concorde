@@ -28,6 +28,7 @@ from common import (
     find_scope_conflict,
     get_git_user_name,
     load_tasks,
+    local_repo_lock,
     run_git,
     tasks_by_id,
 )
@@ -65,7 +66,11 @@ def _announce(title: str, task_id: str, description: str) -> None:
 
 def run_once(owner: str) -> None:
     try:
-        run_git(["pull", "--quiet"])
+        # Locked so this read-before-decide doesn't race another local
+        # process's own locked claim/finish critical section (e.g. a
+        # second poller, or a manual claim_task.py, sharing this checkout).
+        with local_repo_lock():
+            run_git(["pull", "--quiet"])
     except CauceError as exc:
         print(f"warning: git pull failed this cycle ({exc}); will retry next interval", file=sys.stderr)
         return

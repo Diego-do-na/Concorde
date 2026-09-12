@@ -8,6 +8,7 @@ orchestration/boss-dashboard/_mirror/
 orchestration/.agents/
 orchestration/SETUP.md
 orchestration/.env
+orchestration/.cauce.lock
 
 # CONCORDE — altur-challenge dataset (§13.4): never committed, never shipped.
 audio/

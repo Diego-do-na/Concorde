@@ -31,7 +31,7 @@ ORCH_ROOT = APP_DIR.parent          # .../orchestration
 sys.path.insert(0, str(ORCH_ROOT / "scripts"))
 
 from add_task import add_task  # noqa: E402
-from common import CauceError, load_tasks, run_git  # noqa: E402
+from common import CauceError, load_tasks, local_repo_lock, run_git  # noqa: E402
 
 app = FastAPI(title="Cauce Model Requester")
 
@@ -49,8 +49,9 @@ def list_tasks() -> JSONResponse:
     """Just enough state to populate the depends-on multi-select — a
     light git pull for freshness, then id/title/status only."""
     try:
-        run_git(["pull", "--quiet"])
-        data = load_tasks()
+        with local_repo_lock():
+            run_git(["pull", "--quiet"])
+            data = load_tasks()
     except CauceError as exc:
         return JSONResponse(status_code=503, content={"error": str(exc)})
     tasks = [

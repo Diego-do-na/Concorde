@@ -102,7 +102,11 @@ def main() -> None:
     owner = args.owner or get_git_user_name()
 
     try:
-        run_git(["pull", "--quiet"])
+        # No standalone pull here on purpose: claim_next_task() ->
+        # push_tasks_with_retry() already pulls fresh under
+        # local_repo_lock() before deciding what's eligible. An extra
+        # unlocked pull here would race against another local process's
+        # locked critical section instead of just waiting for it.
         task = claim_next_task(owner)
         worktree_path = create_worktree(task["id"])
     except CauceError as exc:

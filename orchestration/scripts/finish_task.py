@@ -33,6 +33,7 @@ from common import (
     fail,
     find_task,
     load_tasks,
+    local_repo_lock,
     now_iso,
     push_tasks_with_retry,
     run_git,
@@ -61,8 +62,13 @@ def main() -> None:
     task_id = args.task_id
 
     try:
-        run_git(["pull", "--quiet"])
-        data = load_tasks()
+        # Under the same local lock push_tasks_with_retry uses below: this
+        # read needs to be fresh (we're about to look up the task's branch
+        # and test-merge it), and an unlocked pull here could otherwise
+        # race against another local process's own locked critical section.
+        with local_repo_lock():
+            run_git(["pull", "--quiet"])
+            data = load_tasks()
         task = find_task(data, task_id)
         if task is None:
             fail(f"no task with id {task_id!r} in tasks.yaml")
