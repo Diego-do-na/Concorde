@@ -67,11 +67,11 @@ tasks:
   - .gitignore
   depends_on: []
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-cursor-agent
   branch: task/T001
   claimed_at: '2026-09-12T22:04:49+00:00'
-  done_at: null
+  done_at: '2026-09-12T22:39:46+00:00'
 - id: T002
   title: '[Diego] EDA gates: class balance, overlap density, duration/label, manifest
     hash + ml/ common helpers'
