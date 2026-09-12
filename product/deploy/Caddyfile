@@ -1,0 +1,121 @@
+# CONCORDE Caddyfile — reverse proxy with Let's Encrypt HTTPS
+# Reference: product/deploy/DOMAIN.md (T054), SERVER.md (T003)
+#
+# This file configures:
+# - Automatic Let's Encrypt certificate issuance for getconcorde.tech
+# - HTTPS (:443) with automatic cert renewal
+# - HTTP (:80) redirect to HTTPS
+# - IP-only :80 fallback (emergency only, never given to judge)
+# - Reverse proxy to API service at 127.0.0.1:8080
+# - Static console files from /opt/concorde/console
+#
+# Validation: `caddy validate --config product/deploy/Caddyfile`
+# Deployment: Copy to /etc/caddy/Caddyfile on the server, systemctl reload caddy
+
+# ---- Primary site block: getconcorde.tech with automatic HTTPS ----
+getconcorde.tech {
+	# Let's Encrypt certificate (automatic on first request)
+	tls {
+		issuer acme {
+			dir https://acme-v02.api.letsencrypt.org/directory
+		}
+	}
+
+	# Reverse proxy: API endpoints → 127.0.0.1:8080
+	# These are the scored endpoints (§8.1, ADR-006)
+	reverse_proxy /detect 127.0.0.1:8080 {
+		request_body max_size 20971520  # 20 MB (FR-003, ADR-009)
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	reverse_proxy /analyze 127.0.0.1:8080 {
+		request_body max_size 20971520  # 20 MB
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	# Health, metrics, version, and feed endpoints
+	reverse_proxy /health 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	reverse_proxy /metrics 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	reverse_proxy /version 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	reverse_proxy /feed/* 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+	}
+
+	# WebSocket support (§8, console real-time updates)
+	reverse_proxy /ws 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto {http.request.proto}
+		header_up Connection "upgrade"
+		header_up Upgrade "websocket"
+	}
+
+	# Static files: React console dashboard (T004)
+	# Serve from /opt/concorde/console; 404s fall through to next handler
+	root /opt/concorde/console
+	file_server {
+		hide .git .gitignore
+	}
+
+	# SPA fallback: if a file doesn't exist, serve index.html for React routing
+	try_files {path} /index.html
+}
+
+# ---- IP-only fallback block (emergency only, never given to judge) ----
+# This serves HTTP on the public IP as a last resort if DNS/TLS fails.
+# Reference: product/deploy/DOMAIN.md (§ Fallback Rule)
+# The judge's client ALWAYS uses https://getconcorde.tech/detect (domain-based).
+# This block is logged as "degraded" when used (CONCORDE_STRICT=0).
+:80 {
+	# Log all requests to this fallback for monitoring
+	log {
+		output stdout
+		level info
+		format json
+	}
+
+	# Reverse proxy: same endpoints as HTTPS block, but on public IP
+	reverse_proxy /detect 127.0.0.1:8080 {
+		request_body max_size 20971520
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto "http"
+		header_up X-Fallback-IP "true"  # Signal to API that this is the fallback
+	}
+
+	reverse_proxy /analyze 127.0.0.1:8080 {
+		request_body max_size 20971520
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto "http"
+		header_up X-Fallback-IP "true"
+	}
+
+	reverse_proxy /health 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto "http"
+		header_up X-Fallback-IP "true"
+	}
+
+	reverse_proxy /metrics 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto "http"
+	}
+
+	reverse_proxy /version 127.0.0.1:8080 {
+		header_up X-Forwarded-For {http.request.remote.host}
+		header_up X-Forwarded-Proto "http"
+	}
+}

@@ -1,0 +1,174 @@
+#!/bin/bash
+# CONCORDE API Deployment Script
+# Usage:
+#   On the server (via Tailscale): ssh -p 2222 root@100.93.147.55 'bash -s' < product/deploy/deploy.sh
+#   Or: scp product/deploy/deploy.sh root@100.93.147.55:/tmp/ && ssh -p 2222 root@100.93.147.55 'bash /tmp/deploy.sh'
+#   With standby flag: ... deploy.sh --standby <standby_ip>
+#
+# This script:
+#  1. Fetches the latest code
+#  2. Compiles the Rust API binary (cargo build --release in product/)
+#  3. Installs the binary and artifacts to /opt/concorde/
+#  4. Updates GIT_SHA in /opt/concorde/.env
+#  5. Restarts the systemd service
+#  6. Waits for /health to confirm readiness
+#
+# Requirements:
+#  - Run as root on the Vultr instance (ssh root@100.93.147.55)
+#  - concorde user and /opt/concorde/ already set up (bootstrap.sh)
+#  - Sufficient swap for Rust compilation (4+ GiB, per SERVER.md)
+#  - /opt/concorde/.env already populated with secrets
+#
+# Exit on any error; log all commands
+set -e
+set -x
+
+# ---- Parse arguments ----
+STANDBY_IP=""
+while [[ $# -gt 0 ]]; do
+	case "$1" in
+		--standby)
+			STANDBY_IP="$2"
+			shift 2
+			;;
+		*)
+			echo "Unknown argument: $1"
+			exit 1
+			;;
+	esac
+done
+
+# ---- Configuration ----
+REPO_DIR="/home/concorde/concorde"  # Where we fetch the repo
+WORK_DIR="/tmp/concorde-build"      # Build directory (can be same as REPO_DIR)
+INSTALL_DIR="/opt/concorde"         # Installation target
+BIN_NAME="concorde-api"
+TIMEOUT_HEALTH=30                    # Seconds to wait for /health
+
+# ---- Ensure concorde user and directories exist ----
+if ! id concorde &>/dev/null; then
+	echo "ERROR: concorde user does not exist. Run bootstrap.sh first."
+	exit 1
+fi
+
+if [ ! -d "$INSTALL_DIR" ]; then
+	echo "ERROR: $INSTALL_DIR does not exist. Run bootstrap.sh first."
+	exit 1
+fi
+
+# ---- Fetch or update repository ----
+if [ ! -d "$REPO_DIR" ]; then
+	# First clone: as concorde user, into concorde's home
+	su - concorde -c "
+		git clone https://github.com/altur-ai/concorde.git '$REPO_DIR'
+	"
+else
+	# Update existing: fetch + reset to origin/main
+	su - concorde -c "
+		cd '$REPO_DIR'
+		git fetch origin
+		git checkout main
+		git reset --hard origin/main
+	"
+fi
+
+# Change to repo directory for all subsequent operations
+cd "$REPO_DIR"
+
+# ---- Capture GIT_SHA before build ----
+GIT_SHA=$(git rev-parse --short HEAD)
+echo "Building from commit: $GIT_SHA"
+
+# ---- Build the Rust binary (as concorde user, in product/) ----
+# The binary is built in product/target/release/concorde-api
+su - concorde -c "
+	cd '$REPO_DIR/product' && \
+	cargo build --release
+"
+
+# ---- Install binary ----
+BINARY_SRC="$REPO_DIR/product/target/release/$BIN_NAME"
+BINARY_DST="$INSTALL_DIR/bin/$BIN_NAME"
+
+if [ ! -f "$BINARY_SRC" ]; then
+	echo "ERROR: Binary not found at $BINARY_SRC"
+	exit 1
+fi
+
+cp "$BINARY_SRC" "$BINARY_DST"
+chown concorde:concorde "$BINARY_DST"
+chmod 755 "$BINARY_DST"
+
+echo "Installed binary: $BINARY_DST"
+
+# ---- Copy artifacts (if they exist) ----
+ARTIFACTS_SRC="$REPO_DIR/product/artifacts"
+ARTIFACTS_DST="$INSTALL_DIR/artifacts"
+
+if [ -d "$ARTIFACTS_SRC" ]; then
+	# Preserve existing artifacts; only copy missing ones
+	mkdir -p "$ARTIFACTS_DST"
+	# Copy all files, overwriting if they exist (safe: model files are immutable)
+	cp -r "$ARTIFACTS_SRC"/* "$ARTIFACTS_DST/" 2>/dev/null || true
+	chown -R concorde:concorde "$ARTIFACTS_DST"
+	chmod -R 755 "$ARTIFACTS_DST"
+	echo "Artifacts synchronized: $ARTIFACTS_DST"
+else
+	echo "WARNING: No artifacts found at $ARTIFACTS_SRC (safe if they exist from previous deploy)"
+fi
+
+# ---- Update GIT_SHA in /opt/concorde/.env ----
+# Replace or add GIT_SHA=<value> line
+if grep -q "^GIT_SHA=" "$INSTALL_DIR/.env"; then
+	# Update existing line
+	sed -i.bak "s/^GIT_SHA=.*/GIT_SHA=$GIT_SHA/" "$INSTALL_DIR/.env"
+else
+	# Append new line
+	echo "GIT_SHA=$GIT_SHA" >> "$INSTALL_DIR/.env"
+fi
+
+chown concorde:concorde "$INSTALL_DIR/.env"
+chmod 600 "$INSTALL_DIR/.env"
+
+echo "Updated GIT_SHA in $INSTALL_DIR/.env: $GIT_SHA"
+
+# ---- Restart systemd service ----
+systemctl daemon-reload
+systemctl restart concorde-api
+
+echo "Service restarted: concorde-api"
+
+# ---- Wait for /health to confirm readiness ----
+echo "Waiting for /health endpoint (up to $TIMEOUT_HEALTH seconds)..."
+HEALTH_URL="http://127.0.0.1:8080/health"
+ELAPSED=0
+INTERVAL=1
+
+while [ $ELAPSED -lt $TIMEOUT_HEALTH ]; do
+	if curl -s -f "$HEALTH_URL" > /dev/null 2>&1; then
+		echo "✓ Service is healthy: $HEALTH_URL"
+		break
+	fi
+	echo "  ... waiting ($ELAPSED/$TIMEOUT_HEALTH s)"
+	sleep $INTERVAL
+	ELAPSED=$((ELAPSED + INTERVAL))
+done
+
+if [ $ELAPSED -ge $TIMEOUT_HEALTH ]; then
+	echo "WARNING: /health did not respond within $TIMEOUT_HEALTH seconds"
+	echo "Service may still be starting; check: systemctl status concorde-api"
+	echo "Logs: journalctl -u concorde-api -f"
+	# Don't exit here; deployment is complete even if we're slow to start
+fi
+
+# ---- Optional standby configuration (stub for §18.3) ----
+if [ -n "$STANDBY_IP" ]; then
+	echo "Standby IP provided: $STANDBY_IP (feature documented for contingency, not yet implemented)"
+	# TODO: Implement standby failover logic per §18.3 (ADR-013)
+fi
+
+echo "✓ Deployment complete!"
+echo "  Binary: $BINARY_DST"
+echo "  Config: $INSTALL_DIR/.env"
+echo "  Logs: journalctl -u concorde-api -f"
+echo "  Health: curl -vI https://getconcorde.tech/health"
