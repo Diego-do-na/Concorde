@@ -544,10 +544,10 @@ tasks:
   depends_on:
   - T010
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T011
+  claimed_at: '2026-09-12T23:41:21+00:00'
   done_at: null
 - id: T012
   title: '[Diego] VAD agreement report vs provided turns (FR-004 gate) + parameter
