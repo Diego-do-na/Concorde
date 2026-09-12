@@ -1051,11 +1051,11 @@ tasks:
   - T023
   - T008
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: paul-claude
   branch: task/T024
   claimed_at: '2026-09-12T23:36:30+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:56:27+00:00'
 - id: T025
   title: '[Paul] Deploy the real model; score the full val split with Altur''s client
     against the public URL; measure p95/p99'
