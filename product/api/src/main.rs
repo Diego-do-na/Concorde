@@ -1,20 +1,8 @@
-mod config;
-mod state;
-mod routes;
-mod http;
-mod audio;
-mod features;
-mod inference;
-mod analysis;
-mod semantic;
-mod storage;
-mod metrics;
-mod feed;
-
 use std::{net::SocketAddr, sync::Arc};
 use tracing::info;
 
-use crate::state::AppState;
+use concorde_api::{AppState, Config};
+use concorde_api::routes;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -24,7 +12,7 @@ async fn main() -> anyhow::Result<()> {
         .with_env_filter(tracing_subscriber::EnvFilter::from_default_env())
         .init();
 
-    let config = config::Config::from_env();
+    let config = Config::from_env();
     let state = Arc::new(AppState::new(config));
 
     let bind = state.config.bind.parse::<SocketAddr>().unwrap_or_else(|_| {

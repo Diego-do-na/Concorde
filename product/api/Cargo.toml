@@ -7,6 +7,9 @@ description = "CONCORDE API service (binary name: concorde)"
 [[bin]]
 name = "concorde"
 path = "src/main.rs"
+[[bin]]
+name = "vad-dump"
+path = "src/bin/vad_dump.rs"
 
 [dependencies]
 axum = "0.6"

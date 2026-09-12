@@ -7,6 +7,9 @@
 
 pub mod energy;
 pub mod params;
+pub mod smooth;
 
 pub use energy::{adaptive_threshold, frame_rms_db, raw_activity};
 pub use params::VadParams;
+pub use smooth::{detect_turns, Turn, Turns};
+

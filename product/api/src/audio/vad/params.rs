@@ -45,9 +45,9 @@ impl Default for VadParams {
             noise_floor_percentile: 0.10,
             threshold_db_above_floor: 6.0,
             on_frames: 3,
-            off_frames: 5,
+            off_frames: 15,
             min_speech_ms: 200,
-            min_gap_ms: 100,
+            min_gap_ms: 250,
         }
     }
 }
