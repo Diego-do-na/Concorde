@@ -71,4 +71,22 @@ Environment variables (defaults and rationale)
 - `CONCORDE_SEMANTIC_TIMEOUT_MS` — default `1500` ms.
 - `CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS` — default `8000` ms.
 - `CONCORDE_WHISPER_MODEL_PATH`, `CONCORDE_WHISPER_THREADS`, `CONCORDE_ASR_MAX_CONCURRENT`, `CONCORDE_SEMANTIC_FUSION_PATH`, `TIGERDATA_URL` — other optional knobs.
+#
+Running the VAD CLI (`vad-dump`)
+- Build the binary: `cargo build --bin vad-dump` (from `product/api`).
+- Usage: `cargo run --bin vad-dump -- <in.wav> [--params k=v ...]`
+- The tool prints a single JSON object to stdout with the exact dataset shape:
+  `{"turns":[{"channel":0,"start":0.00,"end":1.23}, ...]}`. Times are seconds rounded to 2 decimals.
+
+VadParams fields (T011)
+- `frame_ms` (u32): analysis frame length in milliseconds (default 20).
+- `hop_ms` (u32): hop/stride between successive frame starts in milliseconds (default 10).
+- `noise_floor_percentile` (f32): percentile of per-frame energy used as noise floor (default 0.10).
+- `threshold_db_above_floor` (f32): dB offset above the estimated floor to set the activity threshold (default 6.0).
+- `on_frames` (u32): consecutive above-threshold frames required to declare speech onset (default 3).
+- `off_frames` (u32): consecutive below-threshold frames required to declare speech offset (default 15).
+- `min_speech_ms` (u32): minimum duration in ms for a segment to be kept as speech (default 200).
+- `min_gap_ms` (u32): gaps shorter than this (ms) between segments are merged (default 250).
+
+Note: T012 (the agreement sweep) may update the Stage-B defaults; `--params` allows experimenting with alternate values.
 
