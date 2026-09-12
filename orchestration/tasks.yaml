@@ -155,11 +155,11 @@ tasks:
   - product/deploy/SERVER.md
   depends_on: []
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T003
   claimed_at: '2026-09-12T22:40:54+00:00'
-  done_at: null
+  done_at: '2026-09-12T22:50:16+00:00'
 - id: T054
   title: '[Néstor] Domain + DNS now (not in the freeze phase): the public endpoint
     is https from day one'
