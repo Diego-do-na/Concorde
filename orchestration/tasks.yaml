@@ -632,11 +632,11 @@ tasks:
   depends_on:
   - T002
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T013
   claimed_at: '2026-09-12T22:43:27+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:08:39+00:00'
 - id: T014
   title: '[Paul] Rust production feature extractor F-01…F-22 in fc-1 order'
   description: '(a) BUILD — product/api/src/features/mod.rs (+ latency.rs, overlap.rs,
