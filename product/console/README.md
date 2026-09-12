@@ -123,3 +123,12 @@ Rule: exactly three semantic states (VERIFIED, REVIEW, SYNTHETIC); never rely on
 
 - The header keeps the last-known health values when `GET /health` fails. The feed chip switches to `OFFLINE` and dependency chips become amber to indicate degraded state. This ensures the header never blanks (NFR-012).
 
+## Mocks and API client
+
+- Enable dev mocks with `VITE_USE_MOCKS=1` (default off). When enabled the dev server serves deterministic fixtures for `/analyze`, `/feed/*`, `/health`, and `/metrics` using `product/console/src/mocks`.
+- API base URL can be overridden with `VITE_API_BASE` (default same-origin).
+
+Type table: the console mirrors spec §8.2 for the analysis payload (verdict, signals, degraded, timeline, turns, events, features, top_factors, rationale, timings_ms, meta). The console adds a "console-only enrichment" field `waveform`:
+
+- `waveform { caller:number[], agent:number[], bucket_ms:50 }` — peak-envelope buckets for rendering only; this field is never sent by `/detect` and is flagged as an `/analyze` enrichment (T029).
+
