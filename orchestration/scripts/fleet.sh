@@ -16,9 +16,9 @@
 # other's claimed task for their own.
 #
 # Usage:
-#   ./orchestration/scripts/fleet.sh                    # auto-detects claude/cursor on PATH
-#   ./orchestration/scripts/fleet.sh Diego               # explicit base owner, auto-detect agents
-#   ./orchestration/scripts/fleet.sh Diego claude cursor # explicit owner + explicit agent list
+#   ./orchestration/scripts/fleet.sh                          # auto-detects claude/cursor-agent on PATH
+#   ./orchestration/scripts/fleet.sh Diego                     # explicit base owner, auto-detect agents
+#   ./orchestration/scripts/fleet.sh Diego claude cursor-agent # explicit owner + explicit agent list
 #
 # On macOS this opens one Terminal.app window per agent so each stays
 # fully interactive (you still approve every action, same as running
@@ -42,7 +42,9 @@ if [ -z "$BASE_OWNER" ]; then
 fi
 
 if [ "${#AGENTS[@]}" -eq 0 ]; then
-  for candidate in claude cursor; do
+  # The real binary is `cursor-agent`, not `cursor` -- `which cursor`
+  # doesn't resolve even when Cursor CLI is installed and authenticated.
+  for candidate in claude cursor-agent; do
     if command -v "$candidate" >/dev/null 2>&1; then
       AGENTS+=("$candidate")
     fi
@@ -50,7 +52,7 @@ if [ "${#AGENTS[@]}" -eq 0 ]; then
 fi
 
 if [ "${#AGENTS[@]}" -eq 0 ]; then
-  echo "error: neither 'claude' nor 'cursor' found on PATH, and none given explicitly." >&2
+  echo "error: neither 'claude' nor 'cursor-agent' found on PATH, and none given explicitly." >&2
   exit 1
 fi
 

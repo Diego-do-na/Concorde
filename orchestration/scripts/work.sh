@@ -41,17 +41,16 @@ AGENT="${2:-claude}"
 # Cauce tasks are mechanical and don't need a bigger model; tasks that do
 # should set suggested_model explicitly.
 #
-# cursor-agent: NOT verified. cursor-agent requires `agent login` (it was
-# unauthenticated on the machine this was built on, so its actual model
-# catalog couldn't be listed) and uses a different naming scheme entirely
-# (e.g. "gpt-5", "sonnet-4-thinking" per `cursor-agent --help`). Claude-style
-# aliases like "haiku" are almost certainly invalid --model values for it,
-# and an invalid value could break the session outright -- so we
-# deliberately do NOT forward a Claude-style suggested_model to
-# cursor-agent. It launches on its own default until CAUCE_CURSOR_CHEAP_MODEL
-# is set (by whoever confirms the right identifier via
-# `cursor-agent --list-models` on an authenticated machine).
-CAUCE_CURSOR_CHEAP_MODEL="${CAUCE_CURSOR_CHEAP_MODEL:-}"
+# cursor-agent: uses a completely different model catalog from Claude
+# (confirmed via `cursor-agent --list-models` once authenticated -- 200+
+# ids like "gpt-5.4-nano-low", "claude-sonnet-5-high", "gemini-3.7-flash-low").
+# Claude-style suggested_model values (haiku/sonnet/opus/fable) are NEVER
+# forwarded to cursor-agent -- they're not valid ids in its catalog and
+# could break the session outright. "gpt-5-mini" is used as the cheap
+# default instead (confirmed working via `cursor-agent --model gpt-5-mini
+# -p ...`), independent of whatever suggested_model says. Override via
+# CAUCE_CURSOR_CHEAP_MODEL if a cheaper/better default is found later.
+CAUCE_CURSOR_CHEAP_MODEL="${CAUCE_CURSOR_CHEAP_MODEL:-gpt-5-mini}"
 
 resolve_model_flag() {
   local agent="$1" suggested="$2"

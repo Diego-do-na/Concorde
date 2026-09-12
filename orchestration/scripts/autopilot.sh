@@ -41,7 +41,7 @@ OWNER="${1:-}"
 AGENT="${2:-claude}"
 
 # See work.sh for the full rationale of this mapping (kept in sync there).
-CAUCE_CURSOR_CHEAP_MODEL="${CAUCE_CURSOR_CHEAP_MODEL:-}"
+CAUCE_CURSOR_CHEAP_MODEL="${CAUCE_CURSOR_CHEAP_MODEL:-gpt-5-mini}"
 
 resolve_model_flag() {
   local agent="$1" suggested="$2"

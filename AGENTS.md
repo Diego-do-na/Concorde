@@ -139,7 +139,7 @@ pytest                                           # Python-side tests
   - `./orchestration/scripts/work.sh [owner] [agent]` — claims the next
     eligible task, creates its worktree (as a sibling of the repo, outside
     `orchestration/`), and launches the agent (`claude` by default, pass
-    `cursor` as the second arg) directly inside it. Safe to run from
+    `cursor-agent` as the second arg) directly inside it. Safe to run from
     anywhere (it always resolves the main checkout first).
   - `./orchestration/scripts/finish.sh <task-id>` — marks a claimed task
     done. Safe to run from inside the task's own worktree (the common
@@ -157,7 +157,7 @@ pytest                                           # Python-side tests
     claiming a new one.
   - `./orchestration/scripts/fleet.sh [owner] [agent...]` — runs one
     `autopilot.sh` loop per agent CLI **in parallel** (auto-detects
-    `claude`/`cursor` on PATH if none given), each in its own Terminal.app
+    `claude`/`cursor-agent` on PATH if none given), each in its own Terminal.app
     window (macOS; prints the commands to run yourself otherwise), each
     under its own Cauce owner identity (`<owner>-<agent>`) so the two
     loops never mistake each other's in-flight claim for their own. When
