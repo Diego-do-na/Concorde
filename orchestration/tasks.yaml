@@ -443,10 +443,10 @@ tasks:
   depends_on:
   - T007
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-claude
+  branch: task/T008
+  claimed_at: '2026-09-12T23:21:05+00:00'
   done_at: null
 - id: T009
   title: '[Paul] WAV decode, channel split, format validation (hound)'
