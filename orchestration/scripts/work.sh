@@ -17,6 +17,13 @@
 # Model selection: the claimed task's suggested_model (from tasks.yaml,
 # already printed by claim_task.py on its own line) is passed to the
 # agent via --model, resolved per-agent by resolve_model_flag() below.
+#
+# Initial prompt: the claimed task's title+description is passed as the
+# agent's initial prompt (a trailing positional argument -- confirmed this
+# keeps the session fully interactive and still gates every action on a
+# real permission prompt, it's just no longer sitting at an empty input
+# box). Without this, the agent opens with nothing to do and you'd have to
+# find and paste the task description yourself.
 set -euo pipefail
 
 OWNER="${1:-}"
@@ -61,6 +68,26 @@ resolve_model_flag() {
   esac
 }
 
+# build_task_prompt TASK_ID -> echoes "title\n\ndescription" for the given
+# task, straight from tasks.yaml (not by re-parsing claim_task.py's
+# human-formatted output, which can span multiple lines for the
+# description and isn't safe to sed out reliably). Empty output (and no
+# error) if anything goes wrong -- the caller just launches without an
+# initial prompt in that case, same as the old behavior.
+build_task_prompt() {
+  local task_id="$1"
+  TASK_ID_ENV="$task_id" python3 - <<'PY'
+import os, sys
+sys.path.insert(0, "scripts")
+from common import load_tasks, find_task
+task_id = os.environ["TASK_ID_ENV"]
+data = load_tasks()
+task = find_task(data, task_id)
+if task:
+    print(f"{task['title']}\n\n{task['description']}")
+PY
+}
+
 MAIN_ROOT="$(git worktree list --porcelain | awk 'NR==1{sub(/^worktree /,""); print; exit}')"
 cd "$MAIN_ROOT/orchestration"
 
@@ -100,13 +127,21 @@ if ! command -v "$AGENT" >/dev/null 2>&1; then
 fi
 
 MODEL_VALUE="$(resolve_model_flag "$AGENT" "$SUGGESTED_MODEL")"
+TASK_PROMPT="$(build_task_prompt "$TASK_ID" 2>/dev/null || true)"
+
 AGENT_ARGS=("$AGENT")
 if [ -n "$MODEL_VALUE" ]; then
   AGENT_ARGS+=(--model "$MODEL_VALUE")
 fi
+if [ -n "$TASK_PROMPT" ]; then
+  AGENT_ARGS+=("$TASK_PROMPT")
+fi
 
 echo ""
-echo "Launching ${AGENT_ARGS[*]} in $WORKTREE ..."
+echo "Launching ${AGENT_ARGS[0]} (model: ${MODEL_VALUE:-agent default}) in $WORKTREE ..."
+if [ -z "$TASK_PROMPT" ]; then
+  echo "warning: could not load the task prompt from tasks.yaml; the agent will open empty."
+fi
 echo "Tip: when the session ends, run 'python orchestration/scripts/task_log.py $TASK_ID'"
 echo "     before finish_task.py to review what the agent actually did."
 cd "$WORKTREE"

@@ -20,6 +20,13 @@
 # passed to the agent via --model, resolved per-agent by
 # resolve_model_flag() below -- see its comment for what's verified vs. not.
 #
+# Initial prompt: the claimed task's title+description is passed as the
+# agent's initial prompt (a trailing positional argument -- confirmed this
+# keeps the session fully interactive and still gates every action on a
+# real permission prompt, it's just no longer sitting at an empty input
+# box). Re-sent on [r]eopen too, since each reopened session starts fresh
+# with no memory of the earlier one.
+#
 # Before the finish/reopen/quit prompt, prints a deterministic summary of
 # the session (task_log.py, no model call) so you don't have to scroll
 # back through the whole conversation to decide.
@@ -89,6 +96,24 @@ for t in data.get("tasks", []):
 PY
 }
 
+# build_task_prompt TASK_ID -> echoes "title\n\ndescription" for the given
+# task, straight from tasks.yaml. Empty output (no error) if anything goes
+# wrong -- the caller just launches without an initial prompt then, same
+# as the old behavior.
+build_task_prompt() {
+  local task_id="$1"
+  TASK_ID_ENV="$task_id" python3 - <<'PY'
+import os, sys
+sys.path.insert(0, "scripts")
+from common import load_tasks, find_task
+task_id = os.environ["TASK_ID_ENV"]
+data = load_tasks()
+task = find_task(data, task_id)
+if task:
+    print(f"{task['title']}\n\n{task['description']}")
+PY
+}
+
 echo "Cauce autopilot started for '$OWNER' (agent: $AGENT)."
 echo "Ctrl+C at any point leaves the current task exactly as it is."
 echo ""
@@ -128,15 +153,22 @@ while true; do
   fi
 
   MODEL_VALUE="$(resolve_model_flag "$AGENT" "$SUGGESTED_MODEL")"
+  TASK_PROMPT="$(build_task_prompt "$TASK_ID" 2>/dev/null || true)"
+
   AGENT_ARGS=("$AGENT")
   if [ -n "$MODEL_VALUE" ]; then
     AGENT_ARGS+=(--model "$MODEL_VALUE")
+  fi
+  if [ -n "$TASK_PROMPT" ]; then
+    AGENT_ARGS+=("$TASK_PROMPT")
+  else
+    echo "warning: could not load the task prompt from tasks.yaml; the agent will open empty." >&2
   fi
 
   while true; do
     echo ""
     echo "=================================================================="
-    echo " $TASK_ID -- launching ${AGENT_ARGS[*]} in $WORKTREE"
+    echo " $TASK_ID -- launching ${AGENT_ARGS[0]} (model: ${MODEL_VALUE:-agent default}) in $WORKTREE"
     echo " Normal permission prompts apply. Approve/deny each action as usual."
     echo "=================================================================="
     echo ""
