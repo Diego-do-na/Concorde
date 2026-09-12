@@ -42,7 +42,7 @@ done
 REPO_DIR="/home/concorde/concorde"  # Where we fetch the repo
 WORK_DIR="/tmp/concorde-build"      # Build directory (can be same as REPO_DIR)
 INSTALL_DIR="/opt/concorde"         # Installation target
-BIN_NAME="concorde-api"
+BIN_NAME="concorde"                  # Binary name (from Cargo.toml [[bin]] section)
 TIMEOUT_HEALTH=30                    # Seconds to wait for /health
 
 # ---- Ensure concorde user and directories exist ----
