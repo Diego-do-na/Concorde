@@ -583,10 +583,10 @@ tasks:
   - T011
   - T002
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T012
+  claimed_at: '2026-09-12T23:55:02+00:00'
   done_at: null
 - id: T013
   title: '[Diego] Python reference feature extractor F-01…F-22 + frozen contract file
