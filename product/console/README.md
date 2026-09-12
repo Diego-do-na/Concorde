@@ -182,3 +182,12 @@ against — and draws a local playhead line + scrub box.
 Lane border: `oklch(0.25 0.015 252)`. Lane height: 66px (×2 = panel height).
 Playhead: `INK.PLAYHEAD` (`oklch(0.95 0.006 252)`).
 
+Markers (T032)
+
+- Vertical event markers overlay the plot using the same `TimeScale.xFor(t)` coordinate space. Markers are absolute-positioned 1px lines with `pointer-events: none` so the scrub/playhead interaction is unaffected.
+- Marker styles:
+  - Overlap: dashed `oklch(0.95 0.006 252)` (6px dash / 3px gap) with a rotated-square glyph.
+  - Interruption: solid `oklch(0.86 0.01 252)` with a filled-circle glyph.
+  - Silence > 2s: dotted `oklch(0.72 0.012 252)` (3px dot / 4px gap) with a hollow-square glyph (1px `oklch(0.8 0.01 252)` border).
+- The console provides a legend (glyph + label + mono count) and an event log below the factors panel: columns `TIME (m:ss) · TYPE · DURATION`. When no events are present the log shows `No events detected`.
+
