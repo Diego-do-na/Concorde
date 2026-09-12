@@ -359,10 +359,10 @@ tasks:
   depends_on:
   - T005
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T006
+  claimed_at: '2026-09-12T23:17:54+00:00'
   done_at: null
 - id: T007
   title: '[Paul] Request parser: Altur''s canonical JSON first, multi-shape robustness
