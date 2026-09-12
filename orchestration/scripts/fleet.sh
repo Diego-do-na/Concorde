@@ -86,7 +86,11 @@ echo ""
 if [ "$(uname -s)" = "Darwin" ] && command -v osascript >/dev/null 2>&1; then
   for agent in "${AGENTS[@]}"; do
     WORKER_OWNER="${BASE_OWNER}-${agent}"
-    LAUNCHER="$(mktemp /tmp/cauce-fleet-XXXXXX.sh)"
+    # No ".sh" suffix on the template: BSD mktemp (macOS) only substitutes
+    # a trailing run of X's -- anything after them (like ".sh") stops the
+    # substitution and it creates the literal, unrandomized filename
+    # instead, which then collides on every subsequent call.
+    LAUNCHER="$(mktemp /tmp/cauce-fleet-XXXXXX)"
     cat > "$LAUNCHER" <<EOF
 #!/usr/bin/env bash
 cd "$MAIN_ROOT"
