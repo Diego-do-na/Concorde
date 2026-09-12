@@ -1,0 +1,28 @@
+name: Console build
+on:
+  push:
+    paths:
+      - 'product/console/**'
+  pull_request:
+    paths:
+      - 'product/console/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Node setup
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+      - name: Build console if present
+        run: |
+          if [ -d product/console ]; then
+            cd product/console
+            npm ci
+            npm run build
+          else
+            echo "product/console not present; skipping build"
+          fi
+

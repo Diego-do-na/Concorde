@@ -1,0 +1,6 @@
+.env
+ml/data/
+ml/semantic/cache/
+ml/semantic/models/
+api/tests/fixtures/*.wav
+
