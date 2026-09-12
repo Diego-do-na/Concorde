@@ -50,10 +50,10 @@ tasks:
   - canary/c003.txt
   depends_on: []
   suggested_model: haiku
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona
+  branch: task/C-003
+  claimed_at: '2026-09-12T16:14:04+00:00'
   done_at: null
 - id: C-004
   title: 'Canary: write c004.txt'
