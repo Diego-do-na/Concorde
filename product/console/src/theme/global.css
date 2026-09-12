@@ -1,0 +1,115 @@
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  /* fonts */
+  --font-body: 'IBM Plex Sans', system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+  --font-feature-settings: "tnum" 1, "lnum" 1;
+
+  /* surfaces */
+  --surface-page: oklch(0.185 0.014 252);
+  --surface-panel: oklch(0.2 0.014 252);
+  --surface-panel-alt: oklch(0.197 0.014 252);
+  --surface-header: oklch(0.215 0.015 252);
+  --surface-plot: oklch(0.205 0.014 252);
+  --surface-chip-bg: oklch(0.235 0.015 252);
+  --surface-hover: oklch(0.245 0.016 252);
+  --surface-tooltip: oklch(0.28 0.016 252);
+  --surface-tooltip-border: oklch(0.4 0.016 252);
+  --surface-table-alt-1: oklch(0.225 0.015 252);
+  --surface-table-alt-2: oklch(0.207 0.014 252);
+
+  /* lines */
+  --line: oklch(0.3 0.016 252);
+  --line-inner-a: oklch(0.28 0.016 252);
+  --line-inner-b: oklch(0.25 0.015 252);
+  --row-divider: oklch(0.24 0.014 252);
+  --chip-border: oklch(0.32 0.016 252);
+
+  /* ink / text */
+  --ink: oklch(0.94 0.006 252);
+  --ink2: oklch(0.72 0.01 252);
+  --muted: oklch(0.6 0.012 252);
+  --dim-label: oklch(0.56 0.012 252);
+  --mono-1: oklch(0.86 0.008 252);
+  --mono-2: oklch(0.88 0.008 252);
+  --mono-3: oklch(0.9 0.008 252);
+  --playhead: oklch(0.95 0.006 252);
+  --link: oklch(0.78 0.05 252);
+  --link-hover: oklch(0.9 0.05 252);
+  --focus-outline: oklch(0.8 0.05 252);
+  --selection: oklch(0.4 0.05 252);
+
+  /* semantic */
+  --verified-color: oklch(0.74 0.12 168);
+  --verified-dim: oklch(0.42 0.07 168);
+  --verified-wash: oklch(0.27 0.035 168);
+
+  --review-color: oklch(0.79 0.13 78);
+  --review-dim: oklch(0.44 0.08 78);
+  --review-wash: oklch(0.28 0.04 78);
+
+  --synthetic-color: oklch(0.66 0.17 24);
+  --synthetic-dim: oklch(0.40 0.09 24);
+  --synthetic-wash: oklch(0.27 0.045 24);
+
+  /* degraded */
+  --degraded-pattern: repeating-linear-gradient(135deg, oklch(0.46 0.012 252) 0 3px, oklch(0.3 0.014 252) 3px 6px);
+  --degraded-label: 'DEGRADED';
+
+  /* type */
+  --type-label-size: 11px;
+  --type-label-letter-spacing: 0.1em;
+  --type-body-size: 13px;
+  --type-body-weight: 500;
+  --type-metric-mono: 19px;
+  --type-hero: 30px;
+  --type-line-height: 1.45;
+
+  /* radii */
+  --radius-panel: 2px;
+  --radius-bar: 1px;
+  --radius-dot: 50%;
+
+  /* spacing */
+  --header-padding: 10px 20px;
+  --header-gap: 20px;
+  --nav-tab: 9px 14px;
+  --panel-padding: 14px 18px 22px;
+}
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--surface-page);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: var(--font-feature-settings);
+  color: var(--ink);
+  line-height: var(--type-line-height);
+}
+
+::selection { background: var(--selection); }
+
+a { color: var(--link); text-decoration: none; }
+a:hover { color: var(--link-hover); }
+
+.app-root {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.wordmark { text-align: center; }
+.brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+.product {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--muted);
+}
+
