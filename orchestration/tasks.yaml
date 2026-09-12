@@ -402,10 +402,10 @@ tasks:
   depends_on:
   - T001
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-claude
+  branch: task/T007
+  claimed_at: '2026-09-12T22:41:18+00:00'
   done_at: null
 - id: T008
   title: '[Paul] Fail-safe handler boundary + fallback verdict + placeholder POST
