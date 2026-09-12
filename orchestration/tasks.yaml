@@ -1,4 +1,2233 @@
 # tasks.yaml — the single source of truth for Cauce's task board.
 # NEVER edit this file by hand outside of orchestration/scripts/*.py.
 # See git history / README.md for the full schema.
-tasks: []
+tasks:
+- id: T001
+  title: '[Paul] Repo skeleton under product/: Cargo workspace, module stubs, config,
+    /health stub, CI'
+  description: '(a) BUILD — Everything the product is made of lives under product/
+    (sibling of orchestration/, which no task ever touches). Create product/Cargo.toml
+    (workspace, member product/api/; crate concorde-api, bin concorde-api — "concorde"
+    stays the product/binary name, never a folder name), product/rust-toolchain.toml
+    (stable), product/api/Cargo.toml with axum, tokio (full), tower-http (limit, trace),
+    serde, serde_json, hound, tracing, tracing-subscriber (json), anyhow, thiserror,
+    base64, bytes; add ort and ndarray now (pinned) so later tasks never fight over
+    Cargo.toml. product/api/src/main.rs (init JSON tracing, load config, build router,
+    serve on CONCORDE_BIND default 127.0.0.1:8080), product/api/src/config.rs reading
+    ONLY env vars: CONCORDE_BIND, CONCORDE_MODEL_PATH, CONCORDE_FEATURE_CONTRACT=fc-1,
+    CONCORDE_THRESHOLD (optional override), CONCORDE_MAX_BODY_BYTES default 16777216
+    (16 MB — derivation: the judge posts the whole WAV as base64 inside JSON; measured
+    on the dataset the median body is 6.2 MB and the maximum 11.7 MB for a 273 s call;
+    a 4-minute call is 10.2 MB; Altur''s README says "about 5 MB" but its own client
+    produces the sizes above, so 16 MB is the real limit with margin, replacing the
+    spec''s 32 MB that assumed 600 s calls), CONCORDE_HANDLER_TIMEOUT_MS default 20000
+    (the judge''s per-call timeout is 30 s including network), CONCORDE_STRICT, CONCORDE_SEMANTIC_ENABLED,
+    CONCORDE_SEMANTIC_TIMEOUT_MS=1500, CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS=8000,
+    CONCORDE_WHISPER_MODEL_PATH, CONCORDE_WHISPER_THREADS, CONCORDE_ASR_MAX_CONCURRENT,
+    CONCORDE_SEMANTIC_FUSION_PATH, TIGERDATA_URL. product/api/src/state.rs (AppState
+    { config, started_at, git_sha, model: None placeholder }), product/api/src/routes/mod.rs
+    (router() mounting only GET /health for now) and product/api/src/routes/health.rs
+    returning {"status":"ok","model_version":"none","git_sha":<GIT_SHA env or build>,"uptime_s":n,"deps":{}}.
+    Pre-declare EMPTY module files so later tasks never edit mod.rs files owned by
+    others: product/api/src/http/{mod.rs,parse.rs,failsafe.rs}, product/api/src/audio/{mod.rs,decode.rs},
+    product/api/src/audio/vad/{mod.rs,energy.rs,smooth.rs,params.rs}, product/api/src/features/mod.rs,
+    product/api/src/inference/{mod.rs,model.rs}, product/api/src/pipeline.rs, product/api/src/analysis/mod.rs,
+    product/api/src/semantic/mod.rs, product/api/src/storage/mod.rs, product/api/src/metrics.rs,
+    product/api/src/feed.rs, product/api/src/routes/{detect.rs,analyze.rs,metrics.rs,version.rs,feed.rs,history.rs}
+    — each mod.rs already contains the `pub mod x;` lines for its children (an empty
+    .rs file is a valid module). .gitignore (repo root): add .env, product/.env, product/ml/data/,
+    product/ml/semantic/cache/, product/ml/semantic/models/, product/api/tests/fixtures/*.wav
+    (note *.wav is already ignored globally — tests must synthesize WAVs in code).
+    Commit product/.env.example as the documented local template (it already exists
+    in the working tree). GitHub Actions in .github/workflows/: rust.yml (cargo build
+    + cargo test in product/, paths product/api/**), python.yml (pytest under product/ml/,
+    paths product/ml/**), console.yml (npm ci + npm run build in product/console/,
+    paths product/console/**; must not fail while product/console/ does not exist
+    yet). README.md at the REPO ROOT: stub with title, one-paragraph thesis, and a
+    "Sections filled by task" placeholder list — the final README (T056) also lives
+    at the root because it is the first thing a judge opens.
+
+    (b) VERIFY — From product/: `cargo build` and `cargo test` pass from a clean checkout;
+    `cargo run` then `curl -s localhost:8080/health` returns the JSON above with HTTP
+    200; CI workflow YAML validates (a push to a branch shows green rust.yml). Every
+    pre-declared empty module compiles.
+
+    (c) DOCS — product/api/README.md: module map (one line per directory: what lives
+    there and which task fills it), how to build/run/test from product/, env vars
+    table (the §18.2 set plus the additions above, with the 16 MB and 20 s derivations).
+
+    '
+  scope:
+  - product/Cargo.toml
+  - product/rust-toolchain.toml
+  - product/api/
+  - product/.env.example
+  - .github/
+  - README.md
+  - .gitignore
+  depends_on: []
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T002
+  title: '[Diego] EDA gates: class balance, overlap density, duration/label, manifest
+    hash + ml/ common helpers'
+  description: '(a) BUILD — product/ml/requirements.txt (numpy, pandas, scipy, scikit-learn,
+    lightgbm, onnxmltools, onnx, onnxruntime, pytest, matplotlib), product/ml/common/dataset.py
+    (CONCORDE_DATASET_DIR env var, default /Users/diego/Desktop/Proyects/HackMty/hackmty26;
+    load_manifest(), load_turns(anon_id) -> list of (channel,start,end), wav_path(anon_id),
+    iter_split()), product/ml/eda/run_eda.py that reproduces spec §10.1''s four mandatory
+    gates and writes product/ml/eda/REPORT.md: (1) exact class balance per split —
+    expected train 282 = 113 human / 169 synthetic (40.1/59.9), val 71 = 37 / 34;
+    decision: apply class_weight in training because train sits on the 60/40 boundary;
+    (2) overlap density: fraction of calls with >=1 caller/agent interval intersection
+    — expected 94.6 % overall (human 98 %, synthetic 92 %), median overlap events
+    6.5 human vs 3 synthetic; R-04 gate NOT triggered, F-07..F-13 keep full weight;
+    (3) duration vs label (means ~149.7 s human vs ~146.2 s synthetic; point-biserial
+    correlation + AUC of duration alone must be < 0.6 or duration is banned as a feature
+    — it is not in fc-1 anyway); (4) sha256 of manifest.csv (expected 4fa5ac3f25f2bc1fbff9a06a89f621fcca30db5f1443bbd164368193f1d7c544)
+    and WAV format census (all 353 stereo/8 kHz/16-bit). Also record: no speaker-id
+    column exists in manifest.csv, so ADR-012''s "speaker-grouped CV inside train"
+    is not implementable literally; document the fallback (stratified K-fold inside
+    train, val as the only speaker-disjoint measurement) for T016. Plots go to product/ml/eda/*.png
+    (gitignored).
+
+    (b) VERIFY — `python product/ml/eda/run_eda.py` regenerates REPORT.md deterministically;
+    pytest product/ml/eda/test_gates.py asserts the four numbers above against the
+    live dataset (skips if CONCORDE_DATASET_DIR missing).
+
+    (c) DOCS — product/ml/README.md: dataset location convention, how to run EDA,
+    the four gate verdicts in one table. State in product/ml/README.md that the measured
+    overlap density is 94.6 % and R-04 was not triggered.
+
+    '
+  scope:
+  - product/ml/requirements.txt
+  - product/ml/common/
+  - product/ml/eda/
+  - product/ml/README.md
+  depends_on: []
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T003
+  title: '[Paul] Vultr: admin access via Tailscale, confirm the public IP, team keys,
+    swap, bootstrap script'
+  description: '(a) BUILD — The Vultr instance ALREADY EXISTS (UUID 1ef4693f-0082-49fb-ae60-8dd8ba52cead,
+    vc2-2c-4gb, Ubuntu 24.04, Mexico City) and is running. Two addresses that must
+    never be confused: ADMIN access is over Tailscale only — `ssh -p 2222 root@100.93.147.55`
+    (private CGNAT address, reachable only from devices in our Tailscale network;
+    Diego''s keys already work there) — and the PUBLIC endpoint the judge hits is
+    the instance''s public IPv4, which may have changed on restart: confirm it from
+    the Vultr panel AND from the server (`curl -4 -s ifconfig.me`) and record it as
+    PUBLIC_IP in product/deploy/SERVER.md; every later task, the README and every
+    connectivity check use PUBLIC_IP, never the Tailscale address. No SSH-key injection
+    workaround and no tunnel is needed any more. Over the Tailscale session: append
+    Paul''s and Néstor''s public keys to /root/.ssh/authorized_keys; write product/deploy/bootstrap.sh
+    (idempotent, run as root): apt update, install build-essential pkg-config libssl-dev
+    cmake libclang-dev caddy git ufw (cmake + libclang are required to compile whisper-rs
+    later, T045); create a 4 GB swapfile and enable it in /etc/fstab (mandatory before
+    compiling Rust on 4 GB RAM); create system user `concorde` with /opt/concorde/{bin,artifacts,console};
+    install rustup for that user; ufw allow 22/2222/80/443 (keep 22 open only if it
+    is actually used; document the choice); create /opt/concorde/.env from product/deploy/env.server.template
+    with mode 600 owner concorde — variable NAMES only, values are being filled by
+    a teammate by hand and are never committed. Write product/deploy/SERVER.md: both
+    addresses and their roles, PUBLIC_IP, the plan details, and the §18.3 contingency
+    skeleton.
+
+    (b) VERIFY — `ssh -p 2222 root@100.93.147.55 ''free -h; swapon --show; id concorde;
+    caddy version; cmake --version; curl -4 -s ifconfig.me''` shows 4 GB swap active,
+    the user exists, caddy and cmake installed, and prints PUBLIC_IP; all three teammates
+    can log in over Tailscale. Paste the outputs into product/deploy/SERVER.md.
+
+    (c) DOCS — product/deploy/SERVER.md as above (README final links to it; README.md
+    itself is not touched here).
+
+    '
+  scope:
+  - product/deploy/bootstrap.sh
+  - product/deploy/SERVER.md
+  depends_on: []
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T054
+  title: '[Néstor] Domain + DNS now (not in the freeze phase): the public endpoint
+    is https from day one'
+  description: '(a) BUILD — Buy/claim a domain NOW (the HackMTY .tech perk, or any
+    cheap domain available immediately) so the judge endpoint and the console are
+    served over trusted TLS during the whole development, consistent with the project''s
+    privacy decisions — never plain HTTP as the normal state. Create an A record for
+    the apex (and `api.` if you want a separate name) pointing to PUBLIC_IP from product/deploy/SERVER.md
+    (T003). Write product/deploy/DOMAIN.md: registrar, DNS provider, the exact hostnames,
+    TTL, who holds the registrar login (no credentials in the repo), and the fallback
+    rule (http://PUBLIC_IP stays served as a fallback only, never handed to the judge
+    unless TLS is broken). T023 reads the hostname from this file when it writes the
+    Caddyfile.
+
+    (b) VERIFY — `dig +short <hostname>` from two networks returns PUBLIC_IP; a note
+    in DOMAIN.md with the timestamp when DNS propagated. Certificate issuance itself
+    is verified in T024 (Caddy issues it on first start).
+
+    (c) DOCS — product/deploy/DOMAIN.md; README final gets the https URL.
+
+    '
+  scope:
+  - product/deploy/DOMAIN.md
+  depends_on:
+  - T003
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T004
+  title: '[Néstor] Console design tokens + Vite/React scaffold (no views yet)'
+  description: '(a) BUILD — Scaffold product/console/ with Vite + React 18 + TypeScript
+    (npm). Implement product/console/src/theme/tokens.ts exporting typed constants
+    AND product/console/src/theme/global.css installing them as CSS custom properties
+    on :root, plus the font imports and the global rules from the reference (html/body
+    margin 0, background page bg, body font, tnum/lnum, ::selection, a/a:hover). Include
+    helpers: verdictOf(isSynthetic, confidence), toneFor(state) -> {label,color,dim,wash},
+    and the formatters f2 / pct / ms / secs / mmss exactly as in the reference (ms
+    uses en-US thousands separators + '' ms''; mmss = m:ss). No components, no views
+    — the app shell is T005.
+
+
+    Design tokens extracted from docs/design-reference.html (decoded bundle) — use
+    these literal values, do not reinterpret:
+
+    - Fonts: body "IBM Plex Sans", system-ui, sans-serif with font-feature-settings
+    "tnum" 1, "lnum" 1 and -webkit-font-smoothing antialiased; identifiers/payloads/numeric
+    metrics ''IBM Plex Mono'', monospace. Load IBM Plex Sans 400/500/600 and IBM Plex
+    Mono 400/500 from Google Fonts.
+
+    - Surfaces (bluish charcoal, hue 252, elevation by luminance): page bg oklch(0.185
+    0.014 252); panel oklch(0.2 0.014 252) / oklch(0.197 0.014 252); header oklch(0.215
+    0.015 252); plot surface oklch(0.205 0.014 252); chip bg oklch(0.235 0.015 252);
+    hover oklch(0.245 0.016 252); tooltip bg oklch(0.28 0.016 252) with border oklch(0.4
+    0.016 252); table row alt oklch(0.225 0.015 252) / oklch(0.207 0.014 252).
+
+    - Lines: LINE oklch(0.3 0.016 252) (panels are separated by 1px gaps over a LINE
+    background, never by shadows); inner borders oklch(0.28 0.016 252) and oklch(0.25
+    0.015 252); row dividers oklch(0.24 0.014 252); chip border oklch(0.32 0.016 252).
+
+    - Ink: INK oklch(0.94 0.006 252); INK2 oklch(0.72 0.01 252); MUTED oklch(0.6 0.012
+    252); dim label oklch(0.56 0.012 252); mono values oklch(0.86 0.008 252) / oklch(0.88
+    0.008 252) / oklch(0.9 0.008 252); playhead oklch(0.95 0.006 252). Links oklch(0.78
+    0.05 252), hover oklch(0.9 0.05 252); focus outline 1px solid oklch(0.8 0.05 252)
+    offset -2px; ::selection oklch(0.4 0.05 252).
+
+    - Semantic states (exactly three): VERIFIED green oklch(0.74 0.12 168) / dim oklch(0.42
+    0.07 168) / wash oklch(0.27 0.035 168); REVIEW amber oklch(0.79 0.13 78) / dim
+    oklch(0.44 0.08 78) / wash oklch(0.28 0.04 78); SYNTHETIC red oklch(0.66 0.17
+    24) / dim oklch(0.40 0.09 24) / wash oklch(0.27 0.045 24). Badge = wash background
+    + 1px solid dim border + colored text + 8px dot + uppercase label. Health dot
+    glow box-shadow 0 0 0 3px oklch(0.3 0.05 168). Tag chips: STATED (LINE border,
+    INK2), MEASURED (GREEN_DIM border, GREEN, bg oklch(0.24 0.03 168)), ESTIMATE/DERIVED
+    (AMBER_DIM border, AMBER, bg oklch(0.25 0.03 78)).
+
+    - Verdict mapping: is_synthetic && confidence >= 0.70 -> SYNTHETIC; !is_synthetic
+    && confidence >= 0.70 -> VERIFIED; otherwise REVIEW. Colour is never the only
+    carrier: always label text + dot/icon.
+
+    - Degraded signal: hatch repeating-linear-gradient(135deg, oklch(0.46 0.012 252)
+    0 3px, oklch(0.3 0.014 252) 3px 6px), label DEGRADED, bar width 0 — never rendered
+    as zero.
+
+    - Type scale (max 4 sizes): 11px uppercase labels with letter-spacing 0.1em (0.06em
+    / 0.08em / 0.04em variants for chips), 13px body/nav (weight 500), 19px key metrics
+    in mono (weight 500), 30px single hero figure. Weights 400/500/600 only. line-height
+    1.45. Brand: CONCORDE 13px/600/letter-spacing 0.14em + CONSOLE 11px/400 MUTED.
+
+    - Radii: 2px on panels/chips/badges/buttons; 1px on bars; 50% on status dots (5-8px).
+
+    - Spacing: header padding 10px 20px, gap 20px; nav tab padding 9px 14px with active
+    border-bottom 2px; section heads 8px 12px; list rows 7px 12px; table cells 6-7px
+    10px; panel padding 14px 18px 22px; grid gaps 0 12px; waveform lane height 66px,
+    confidence trace 84px, lane label column 84px.
+
+    - Motion: functional only; respect prefers-reduced-motion. Row density prop compact
+    (default) / comfortable.
+
+
+    (b) VERIFY — `npm run build` succeeds; a vitest unit test asserts verdictOf(true,0.7)=''synthetic'',
+    verdictOf(false,0.71)=''verified'', verdictOf(true,0.69)=''review'' and that every
+    semantic token string above is present verbatim in tokens.ts; `npm run dev` renders
+    a blank page with the page background and the CONCORDE / CONSOLE wordmark only.
+
+    (c) DOCS — product/console/README.md: how to run/build, the token table (name
+    -> value) copied from tokens.ts, and the rule "exactly three semantic states,
+    never colour alone".
+
+    '
+  scope:
+  - product/console/package.json
+  - product/console/package-lock.json
+  - product/console/index.html
+  - product/console/tsconfig.json
+  - product/console/tsconfig.node.json
+  - product/console/vite.config.ts
+  - product/console/src/main.tsx
+  - product/console/src/theme/
+  - product/console/README.md
+  - product/console/.gitignore
+  - product/console/public/
+  depends_on: []
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T005
+  title: '[Néstor] Console app shell: header, nav tabs, routing, connection/health
+    state'
+  description: '(a) BUILD — product/console/src/app/: App.tsx (shell), Header.tsx
+    (brand CONCORDE 13px/600/0.14em + CONSOLE 11px MUTED; health dot + label; MODEL
+    / CONTRACT / p95 / UPTIME mono chips; dependency chips right-aligned: each chip
+    = 5px dot + label + state, amber border/bg when degraded; feed chip WS / POLLING
+    / OFFLINE), Nav.tsx (tabs Monitor · Detail · Exec · Demo, padding 9px 14px, active
+    border-bottom 2px, hover bg oklch(0.245 0.016 252), focus outline per tokens),
+    routing with react-router (/, /calls/:id, /exec, /demo), and a ShellState context
+    holding health (from GET /health), connection mode, last-known-state timestamp.
+    Every route renders a placeholder panel ("view lands with task Txxx") so the shell
+    is navigable now. Header must never blank out: if /health fails, keep the last
+    known values and flip the feed chip to OFFLINE (NFR-012).
+
+    (b) VERIFY — vitest + @testing-library: renders header with all chips; nav switches
+    routes; simulated /health failure keeps previous model version visible and shows
+    OFFLINE. `npm run build` passes. Manual: all four tabs reachable within 20 s from
+    landing (FR-012 rehearsal criterion).
+
+    (c) DOCS — product/console/README.md: routing table and the "degrade to last known
+    state" rule.
+
+    '
+  scope:
+  - product/console/src/app/
+  depends_on:
+  - T004
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T006
+  title: '[Néstor] Typed API client, §8.2 fixtures, WebSocket-with-polling-fallback
+    feed'
+  description: '(a) BUILD — product/console/src/lib/api.ts: typed client for POST
+    /analyze (multipart upload of a WAV or JSON {audio_base64}), GET /health, GET
+    /metrics, GET /feed/recent, GET /feed/analysis/:id (retained analysis, 404 ->
+    null), and a `Feed` class that opens WS /ws and silently falls back to polling
+    GET /feed/recent every 3 s when the socket closes or errors (no error UI, feed
+    chip state exposed). TypeScript types mirror spec §8.2 EXACTLY: verdict{is_synthetic,confidence,threshold},
+    signals{behavioral,semantic|null,acoustic|null}, degraded{semantic_available,acoustic_available},
+    timeline[{t,confidence}], turns{caller:[[s,e]],agent:[[s,e]]}, events[{type:''overlap''|''interruption''|''silence'',t,duration}],
+    features{...}, top_factors[{feature,value,direction:''synthetic''|''human'',weight}],
+    rationale, timings_ms{decode,vad,features,semantic|null,inference,total}, meta{model_version,git_sha,feature_contract,duration_s},
+    plus the additive field waveform{caller:number[],agent:number[],bucket_ms:50}
+    (peak envelope, added to /analyze by T029 — flagged for Paul''s approval as an
+    /analyze enrichment, never /detect). product/console/src/mocks/: a deterministic
+    fixture generator ported from the reference''s buildCall() (seeded xorshift rng,
+    same shapes) producing 14 calls, plus a `VITE_USE_MOCKS=1` switch so every view
+    can be built and demoed before the backend exists. Base URL from VITE_API_BASE
+    (default same-origin).
+
+    (b) VERIFY — vitest: fixture output validates against the TypeScript types via
+    zod schemas; Feed falls back to polling when a mocked WS errors and recovers when
+    it reopens; api.analyze sends both multipart and JSON shapes correctly (msw).
+
+    (c) DOCS — product/console/README.md: mocks switch, env vars, and the §8.2 type
+    table with the waveform addition marked "console-only enrichment".
+
+    '
+  scope:
+  - product/console/src/lib/
+  - product/console/src/mocks/
+  depends_on:
+  - T005
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T007
+  title: '[Paul] Request parser: Altur''s canonical JSON first, multi-shape robustness
+    second (FR-003)'
+  description: '(a) BUILD — The request shape is now KNOWN, not assumed: Altur published
+    the judge''s client (hackmty26/scripts/check_endpoint.py, commit 429adf7): `POST
+    /detect` with `Content-Type: application/json` and body {"call_id": "...", "audio_base64":
+    "<base64 of the complete WAV>", "sample_rate": 8000, "channels": 2}. Q-01/A-01
+    of the spec are resolved; ADR-009''s multi-shape parsing is kept only as cheap
+    robustness, no longer the project''s top risk. product/api/src/http/parse.rs:
+    `extract_audio(headers, body: Bytes) -> Result<ParsedRequest, ParseError>` where
+    ParsedRequest {wav: Bytes, call_id: Option<String>, declared_sample_rate: Option<u32>,
+    declared_channels: Option<u16>}. Order: (1) canonical JSON with audio_base64 (+
+    call_id/sample_rate/channels passed through for logging; if declared values disagree
+    with the WAV header the header wins and a warning is logged); (2) JSON with any
+    of audio, wav, data, file, clip, content; (3) raw binary WAV (RIFF....WAVE magic);
+    (4) raw base64 body; (5) multipart/form-data single file part. Tolerate data-URI
+    prefixes, whitespace, padded/unpadded and URL-safe base64. Enforce CONCORDE_MAX_BODY_BYTES
+    (16 MB, see T001) before decoding. Typed errors, never panic.
+
+    (b) VERIFY — PRIMARY: run Altur''s own client against the local server once T008
+    mounts /detect — `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url
+    http://127.0.0.1:8080/detect --split val --n 5` must report errors: 0 (this is
+    the judge''s exact request). SECONDARY: parametrised unit tests in parse.rs: the
+    canonical body, the 4 fallback shapes × padded/unpadded × with/without data-URI
+    (16+ cases) all yield the identical synthetic WAV generated in-test with hound;
+    declared sample_rate 16000 with an 8 kHz WAV parses and logs the mismatch; oversize
+    (17 MB), empty, invalid base64 and JSON without a known key produce distinct ParseError
+    variants. `cargo test http::` green.
+
+    (c) DOCS — product/api/README.md: the canonical request (copied verbatim from
+    Altur''s README) first, then the tolerated fallbacks with one curl each.
+
+    '
+  scope:
+  - product/api/src/http/
+  depends_on:
+  - T001
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T008
+  title: '[Paul] Fail-safe handler boundary + fallback verdict + placeholder POST
+    /detect (ADR-006, NFR-005)'
+  description: '(a) BUILD — product/api/src/http/failsafe.rs: `run_failsafe(request_id,
+    fut) -> DetectResponse` wrapping any handler future with catch_unwind (AssertUnwindSafe)
+    + a tokio timeout (CONCORDE_HANDLER_TIMEOUT_MS, default 20000 — the judge allows
+    30 s per call including network, so 20 s keeps a margin while never leaving the
+    judge waiting) that converts panic/timeout/error into the fallback verdict {"is_synthetic":
+    false, "confidence": 0.50} with HTTP 200, logging a structured `incident` event
+    (reason, request_id, call_id if parsed, byte size). If CONCORDE_STRICT=1, propagate
+    the error as HTTP 500 instead (dev only). `DetectResponse` is a struct with exactly
+    two fields in this order: is_synthetic: bool, confidence: f64 — serde forbids
+    extra fields by construction (Altur''s client ignores extras, but the two-key
+    body stays the contract). product/api/src/routes/detect.rs: POST /detect = parse
+    (T007) -> placeholder verdict {is_synthetic:false, confidence:0.50} for now, always
+    through run_failsafe; mount in routes/mod.rs. Confidence clamped to [0,1], 4 decimals.
+
+    (b) VERIFY — PRIMARY: `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py
+    --url http://127.0.0.1:8080/detect --split val --n 10` reports answered: 10, errors:
+    0 (the placeholder answers are meaningless but the plumbing is exactly what the
+    judge exercises). SECONDARY: integration tests (tower::ServiceExt oneshot): a
+    panicking handler returns 200 + fallback; a handler sleeping past the timeout
+    returns 200 + fallback; a valid WAV returns 200 with key set exactly {is_synthetic,
+    confidence}; with CONCORDE_STRICT=1 the panic case returns 500.
+
+    (c) DOCS — product/api/README.md: "Fault semantics" section (fallback body, STRICT
+    behaviour, the 20 s handler timeout vs the judge''s 30 s).
+
+    '
+  scope:
+  - product/api/src/http/failsafe.rs
+  - product/api/src/routes/detect.rs
+  - product/api/src/routes/mod.rs
+  depends_on:
+  - T007
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T009
+  title: '[Paul] WAV decode, channel split, format validation (hound)'
+  description: '(a) BUILD — product/api/src/audio/decode.rs: `decode_wav(bytes) ->
+    Result<Stereo8k, AudioError>` using hound from a Cursor; validate 2 channels,
+    8000 Hz, 16-bit PCM (int) — anything else is a typed AudioError (Mono, WrongRate(u32),
+    WrongBits, Truncated, NotWav). Split into caller (ch0) and agent (ch1) as Vec<f32>
+    in [-1,1]; expose duration_s. Tolerate a truncated data chunk by decoding what
+    exists only if >= 1 s remains, else Truncated. Never allocate more than the declared
+    size (guard against absurd headers).
+
+    (b) VERIFY — Unit tests generate WAVs in code with hound (no fixture files): valid
+    stereo 8 kHz decodes with correct lengths and the two channels are the two distinct
+    sine waves written; mono, 44100 Hz, 24-bit, random bytes and zero-length inputs
+    each map to their error variant; a truncated file with 2 s of data decodes with
+    duration 2.0.
+
+    (c) DOCS — product/api/README.md module map line for audio/decode.rs with the
+    accepted format and the error taxonomy.
+
+    '
+  scope:
+  - product/api/src/audio/decode.rs
+  - product/api/src/audio/mod.rs
+  depends_on:
+  - T001
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T010
+  title: '[Paul] VAD stage A: framing, RMS energy, adaptive noise-floor threshold'
+  description: '(a) BUILD — product/api/src/audio/vad/params.rs: `VadParams` with
+    ALL tunables and their defaults in one place (frame_ms=20, hop_ms=10, noise_floor_percentile=0.10,
+    threshold_db_above_floor=6.0, plus the stage-B params on_frames/off_frames/min_speech_ms/min_gap_ms
+    which T011 fills). product/api/src/audio/vad/energy.rs: `frame_rms_db(samples,
+    sr, params) -> Vec<f32>` (per-frame RMS in dB, hop-aligned), `adaptive_threshold(frames_db,
+    params) -> f32` (noise floor = low percentile of frame energies over the whole
+    channel + fixed dB offset; per-channel, so the agent channel''s louder TTS does
+    not bias the caller''s threshold), `raw_activity(frames_db, thr) -> Vec<bool>`.
+    Pure functions, no allocation surprises, O(n).
+
+    (b) VERIFY — Unit tests with synthesized signals: silence + a 1 s tone burst at
+    -20 dBFS over -50 dBFS noise yields activity exactly on the burst frames (±1 frame);
+    two channels with different noise floors get different thresholds; empty input
+    returns empty. A criterion/`cargo test --release` timing assertion: 300 s of audio
+    processed in < 100 ms.
+
+    (c) DOCS — doc comments on every pub fn stating units (dB, ms, frames) and a module-level
+    comment on why the threshold is per-channel and percentile-based (ADR-003).
+
+    '
+  scope:
+  - product/api/src/audio/vad/energy.rs
+  - product/api/src/audio/vad/params.rs
+  depends_on:
+  - T009
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T011
+  title: '[Paul] VAD stage B: hysteresis, min-duration smoothing, turns.json-shaped
+    output, vad-dump CLI'
+  description: '(a) BUILD — product/api/src/audio/vad/smooth.rs: `smooth(raw: &[bool],
+    params) -> Vec<(f32,f32)>` applying hysteresis (speech starts after on_frames
+    consecutive active frames, ends after off_frames inactive), then drop segments
+    shorter than min_speech_ms and merge gaps shorter than min_gap_ms; fill the stage-B
+    defaults in params.rs (on_frames=3, off_frames=15, min_speech_ms=200, min_gap_ms=250
+    as starting points). product/api/src/audio/vad/mod.rs: `Turn { channel: u8, start:
+    f32, end: f32 }` (serde, 2-decimal rounding on serialize like the dataset), `detect_turns(stereo,
+    params) -> Turns { turns: Vec<Turn> }` sorted by start, and `Turns::split() ->
+    (caller: Vec<(f32,f32)>, agent: Vec<(f32,f32)>)`. product/api/src/bin/vad_dump.rs:
+    `vad-dump <in.wav> [--params k=v ...]` printing {"turns":[...]} in exactly the
+    dataset''s shape to stdout, for the Python agreement report (T012).
+
+    (b) VERIFY — Unit tests: a synthesized 3-turn dialogue (alternating tones with
+    gaps) yields exactly 3 turns with boundaries within 30 ms; a 100 ms click is dropped;
+    two segments 150 ms apart are merged. `cargo run --bin vad-dump -- some.wav |
+    python -m json.tool` parses and every turn has channel in {0,1} and start < end.
+
+    (c) DOCS — product/api/README.md: how to run vad-dump and the meaning of each
+    VadParams field; note that params.rs defaults may be updated by T012 after the
+    agreement sweep.
+
+    '
+  scope:
+  - product/api/src/audio/vad/smooth.rs
+  - product/api/src/audio/vad/mod.rs
+  - product/api/src/bin/vad_dump.rs
+  depends_on:
+  - T010
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T012
+  title: '[Diego] VAD agreement report vs provided turns (FR-004 gate) + parameter
+    sweep'
+  description: '(a) BUILD — product/ml/validation/vad_agreement/run_agreement.py:
+    runs `cargo run --release --bin vad-dump` (built once, then called as a binary)
+    over ALL 353 calls (spec minimum is 30), rasterises both the reference turns/<id>.json
+    and the VAD output at 10 ms per channel, and reports per-channel and overall per-frame
+    precision/recall/F1, turn-count ratio (vad/ref), and boundary error median. Gate
+    per FR-004: per-frame F1 >= 0.85 AND turn-count ratio within ±20 %. Add sweep.py
+    that grid-searches VadParams via `--params` over threshold_db_above_floor {4,6,8,10},
+    off_frames {10,15,25}, min_speech_ms {150,200,300}, min_gap_ms {150,250,400} on
+    a 60-call subset from train only (never val), then re-evaluates the best set on
+    the full set. If the best set differs from the defaults, update product/api/src/audio/vad/params.rs
+    defaults (this file is deliberately inside this task''s scope) and record before/after.
+    Output product/ml/validation/vad_agreement/REPORT.md with the gate verdict per
+    split and per label (a VAD that behaves differently by label is a leakage alarm
+    per §10.2).
+
+    (b) VERIFY — pytest test_report.py asserts REPORT.md exists and the gate line
+    says PASS; if it says FAIL the task is not done — iterate on params (never on
+    the reference files). Report is regenerated by one command documented in the README.
+
+    (c) DOCS — product/ml/README.md: VAD agreement section with the final F1 / ratio
+    numbers and the chosen params; product/api/src/audio/vad/params.rs doc comment
+    cites this report.
+
+    '
+  scope:
+  - product/ml/validation/vad_agreement/
+  - product/api/src/audio/vad/params.rs
+  depends_on:
+  - T011
+  - T002
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T013
+  title: '[Diego] Python reference feature extractor F-01…F-22 + frozen contract file
+    fc-1'
+  description: '(a) BUILD — product/artifacts/feature_contract_fc-1.json: {"contract":"fc-1","features":[...23
+    names in order...]} — F-01 resp_latency_mean, F-02 resp_latency_median, F-03 resp_latency_std,
+    F-04 resp_latency_cv, F-05 latency_monotony_index, F-06 resp_latency_min, F-07
+    overlap_count, F-08 overlap_rate_per_min, F-09 overlap_total_dur, F-10 caller_bargein_count,
+    F-11 recovery_delay_mean, F-12 recovery_delay_cv, F-13 recovery_abort_ratio, F-14
+    caller_turn_dur_mean, F-15 caller_turn_dur_std, F-16 caller_turn_dur_cv, F-17
+    short_turn_ratio, F-18 fragmentation_rate, F-19 caller_speech_ratio, F-20 speech_balance,
+    F-21a silence_break_delay_mean, F-21b silence_break_delay_cv, F-22 turn_count_caller
+    (F-21 is two values per §9, so the fc-1 vector has 23 floats; F-23 semantic is
+    NOT part of fc-1''s vector). product/ml/features/extract.py: `extract(caller:
+    list[(s,e)], agent: list[(s,e)], duration_s) -> np.ndarray` implementing §9 definitions
+    literally (half-open intervals; response latency = for each agent turn a, first
+    caller turn c with c.start >= a.end; monotony = fraction within ±0.15 s of the
+    median; barge-in = caller turn starting strictly inside an agent turn; recovery
+    = time from overlap end to next caller turn start; abort = caller turn ends within
+    0.4 s of overlap onset; short turn < 1.0 s; fragmentation = same-channel caller
+    pairs with gap < 0.5 s per minute; silence break = mutual-silence gaps > 2.0 s
+    until caller speaks). Degenerate cases MUST be defined and documented, not left
+    to numpy: empty sets -> latency stats = 0.0 with cv = 0.0, ratios = 0.0, min =
+    0.0; never NaN/inf in the output. Input is turns-shaped so it works on turns.json
+    AND on vad-dump output identically. product/ml/features/contract.py loads the
+    JSON and asserts extract() output length and order.
+
+    (b) VERIFY — pytest product/ml/features/tests: hand-computed vectors for 3 tiny
+    synthetic dialogues (values worked out in the test comments), the sample from
+    §9 (F-18 visible at 126.32–129.14 / 129.46–131.26), the no-caller-turns and single-turn
+    degenerate cases produce finite numbers, and the contract file matches extract()''s
+    names. Extract over the whole dataset finishes in < 10 s and yields no NaN.
+
+    (c) DOCS — product/ml/README.md feature section: one line per feature with the
+    exact rule used for degenerate inputs (this is what the Rust extractor must mirror).
+    product/ml/README.md must state explicitly that fc-1 has 23 floats because F-21
+    is two values.
+
+    '
+  scope:
+  - product/ml/features/
+  - product/artifacts/feature_contract_fc-1.json
+  depends_on:
+  - T002
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T014
+  title: '[Paul] Rust production feature extractor F-01…F-22 in fc-1 order'
+  description: '(a) BUILD — product/api/src/features/mod.rs (+ latency.rs, overlap.rs,
+    morphology.rs, balance.rs): `pub const FC1_NAMES: [&str; 23]` in the exact order
+    of product/artifacts/feature_contract_fc-1.json, `pub const FC1_VERSION: &str
+    = "fc-1"`, and `extract(caller: &[(f32,f32)], agent: &[(f32,f32)], duration_s:
+    f32) -> [f64; 23]` mirroring product/ml/features/extract.py line by line (read
+    it first; the Python file is the source of truth, including every degenerate-case
+    rule in product/ml/README.md). Use f64 internally, half-open intervals, the same
+    ±0.15 s / 0.4 s / 1.0 s / 0.5 s / 2.0 s constants, and the same population-vs-sample
+    std convention as numpy (ddof=0). Also `extract_named() -> Vec<(&str,f64)>` for
+    /analyze.
+
+    (b) VERIFY — Unit tests: a test reads product/artifacts/feature_contract_fc-1.json
+    at test time and asserts FC1_NAMES equals it (order + names); the same 3 synthetic
+    dialogues from the Python tests reproduce the same hand-computed vectors; degenerate
+    inputs never produce NaN/inf. Golden parity on real calls is T015, not here.
+
+    (c) DOCS — product/api/README.md: features section pointing to the contract file,
+    with the rule "any change here creates fc-2 and requires T015 + re-export".
+
+    '
+  scope:
+  - product/api/src/features/
+  depends_on:
+  - T011
+  - T013
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T015
+  title: '[Diego] Golden-vector parity test Python ↔ Rust on 10 fixed calls (FR-005)'
+  description: '(a) BUILD — product/ml/validation/parity/make_golden.py: picks 10
+    fixed anon_ids (5 human, 5 synthetic, listed in the script) from train, loads
+    their turns.json intervals (no audio, no manifest — intervals only, which is not
+    audio-bearing data), runs the Python extractor and writes product/ml/validation/parity/golden/<anon_id>.json
+    {caller, agent, duration_s, fc1: [23 floats], contract:"fc-1"}. Also includes
+    3 synthetic degenerate fixtures (no caller turns; one turn each; fully overlapping).
+    product/api/tests/parity.rs: Rust integration test that loads every golden JSON,
+    runs features::extract and asserts |rust - py| <= 1e-6 element-wise, printing
+    the first mismatching feature name on failure. Any mismatch is fixed by aligning
+    the RUST side to Python unless Python violates §9, in which case stop and get
+    Diego''s sign-off.
+
+    (b) VERIFY — `cargo test --test parity` green on all 13 fixtures; `python product/ml/validation/parity/make_golden.py`
+    is idempotent (re-run produces a zero diff). Write product/ml/validation/parity/REPORT.md
+    with the max abs error per feature.
+
+    (c) DOCS — product/ml/README.md and product/api/README.md: "parity" section with
+    the one command for each side.
+
+    '
+  scope:
+  - product/ml/validation/parity/
+  - product/api/tests/parity.rs
+  depends_on:
+  - T013
+  - T014
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T016
+  title: '[Diego] Feature table build: fc-1 vectors for all calls from turns.json
+    AND from the Rust VAD'
+  description: '(a) BUILD — product/ml/train/build_dataset.py: for every call in manifest,
+    compute the fc-1 vector twice — from the provided turns.json and from `vad-dump`
+    output (built in release) — and write product/ml/data/features_ref.parquet and
+    product/ml/data/features_vad.parquet (columns: anon_id, label, split, duration_s,
+    the 23 fc-1 names, source). product/ml/data/ is gitignored. Also write product/ml/data/skew_report.md:
+    per-feature mean abs difference between the two sources and Spearman correlation;
+    features whose correlation < 0.7 are flagged as "VAD-sensitive" for the training
+    task to watch (R-01 evidence). The training table is features_vad (train on what
+    serving sees, FR-004/ADR-003).
+
+    (b) VERIFY — pytest: both tables have 353 rows, no NaN, identical anon_id sets;
+    the script is idempotent; runtime < 3 min. skew_report.md exists with all 23 features.
+
+    (c) DOCS — product/ml/README.md: dataset build command, why features_vad is the
+    training table, and the skew table summary.
+
+    '
+  scope:
+  - product/ml/train/build_dataset.py
+  - product/ml/train/__init__.py
+  - product/ml/train/tests/test_build_dataset.py
+  depends_on:
+  - T011
+  - T013
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T017
+  title: '[Diego] LightGBM training with CV inside train only, class weights, seed
+    + reproducibility record'
+  description: '(a) BUILD — product/ml/train/train.py: LightGBM binary classifier
+    on features_vad, train split only (val is NEVER read here, ADR-012): max_depth
+    <= 4, num_leaves <= 15, min_data_in_leaf >= 15, feature_fraction 0.8, bagging,
+    learning_rate 0.05, early stopping on CV; scale_pos_weight / class_weight from
+    the 40/60 balance; 5-fold StratifiedKFold repeated 3 seeds inside train (manifest.csv
+    has no speaker identifier and the dataset terms forbid trying to identify anyone,
+    so speaker-grouped CV per ADR-012 is NOT possible and must not be approximated
+    by clustering voices — document this deviation prominently as "ADR-012 deviation:
+    stratified K-fold by anon_id inside train; val is the only speaker-disjoint measurement";
+    val stays untouched here). Fixed seed 20260912. Save product/ml/data/model_lgbm.txt
+    + product/ml/data/train_meta.json {git_sha, seed, manifest_sha256, feature_contract:"fc-1",
+    cv_auc_mean, cv_auc_std, params, feature_importance (gain), train_feature_means,
+    train_feature_stds, direction_sign per feature (sign of Spearman with label on
+    train)}. Gate check from T012 (VAD agreement PASS) must be asserted at start by
+    reading product/ml/validation/vad_agreement/REPORT.md.
+
+    (b) VERIFY — pytest: training is deterministic (two runs produce identical model
+    text); CV AUC mean reported; a test asserts val rows are never loaded (monkeypatch
+    the manifest loader and fail if split==''val'' is requested). Anti-self-deception
+    rule §10.2: if CV AUC > 0.97, the script prints the top-5 importances and refuses
+    to exit 0 until `--acknowledge-audit` is passed after a human looks at them.
+
+    (c) DOCS — product/ml/README.md training section: params, the CV protocol and
+    the speaker-id caveat, the CV AUC; README.md is filled by the final task from
+    this file.
+
+    '
+  scope:
+  - product/ml/train/train.py
+  - product/ml/train/tests/test_train.py
+  depends_on:
+  - T016
+  - T012
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T018
+  title: '[Diego] Calibration (Platt) on val + threshold chosen on train for BALANCED
+    ACCURACY'
+  description: '(a) BUILD — product/ml/train/calibrate.py: load model_lgbm.txt; compute
+    raw scores on train (CV out-of-fold) and on val; fit Platt scaling (sigmoid A,B)
+    on VAL (its designated use, ADR-012), report isotonic for comparison but ship
+    Platt (two floats). THRESHOLD: Altur''s main metric is balanced accuracy = (TPR_synthetic
+    + TNR_human)/2 at the threshold we choose, so pick the threshold on TRAIN out-of-fold
+    calibrated probabilities that MAXIMISES balanced accuracy; break ties (flat plateau)
+    by the asymmetric cost 3·FP + 1·FN from §8.4 (prefer the threshold that blocks
+    fewer legitimate customers). Report balanced accuracy on val at that threshold
+    plus its sensitivity (BA at threshold ±0.05). Write product/ml/data/calibration.json
+    {type:"platt", a, b, threshold, threshold_rule:"max balanced accuracy on train
+    OOF, ties -> 3FP+1FN", fitted_on:"val", ba_train_oof, ba_val, ece_val, brier_val_before,
+    brier_val_after, confidence_rule:"asserted_class"}. confidence semantics match
+    Altur''s README ("your certainty in the is_synthetic value you returned"): P(synthetic)
+    when is_synthetic else 1 − P(synthetic) — applied on the serving side (T020);
+    the judge''s client converts it back to P(synthetic) for its AUC exactly this
+    way.
+
+    (b) VERIFY — pytest: calibrated probabilities are monotonic in raw score; Brier
+    on val after calibration <= before; threshold in (0,1) and equals the argmax of
+    BA on train OOF (recomputed in the test); calibration.json validates against a
+    JSON schema. Reliability-curve PNG written to product/ml/data/.
+
+    (c) DOCS — product/ml/README.md calibration section (why Platt, the BA-first threshold
+    rule, the val BA, how CONCORDE_THRESHOLD overrides it at runtime).
+
+    '
+  scope:
+  - product/ml/train/calibrate.py
+  - product/ml/train/tests/test_calibrate.py
+  depends_on:
+  - T017
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T019
+  title: '[Diego] Metrics report: balanced accuracy first, then AUC, EER, Brier, ECE,
+    confusion matrix, error by duration, importances'
+  description: '(a) BUILD — product/ml/train/report.py producing product/ml/train/REPORT.md
+    (committed, no audio) with, in this order: val BALANCED ACCURACY at the shipped
+    threshold (Altur''s main metric) with TPR_synthetic and TNR_human, val ROC-AUC
+    (target >= 0.90) and Brier (target <= 0.12) as the tie-break metrics Altur also
+    reports, EER, accuracy, ECE, reliability table, confusion matrix, error rate by
+    duration band (60–120 / 120–180 / 180–280 s), top-10 feature importances with
+    direction, CV-vs-val gap, and an explicit "anti-self-deception audit" paragraph:
+    if val AUC >= 0.97 list the evidence checked (duration correlation from T002,
+    VAD-by-label agreement from T012, top importances) before calling it a success.
+    Also emit product/ml/data/metrics.json for the README and the exec view, and cross-check
+    with Altur''s own scorer: once T022 is done, `check_endpoint.py --split val --n
+    0 --out val_check.json` must reproduce the same balanced accuracy within ±0.01
+    (note this in the report when available).
+
+    (b) VERIFY — pytest: REPORT.md contains every section header above; metrics.json
+    has all keys including balanced_accuracy; numbers in REPORT.md equal metrics.json.
+    Report regenerates in one command.
+
+    (c) DOCS — product/ml/README.md: "Results" table linking REPORT.md; these are
+    the numbers the final README cites and the three teammates memorise (§18.4).
+
+    '
+  scope:
+  - product/ml/train/report.py
+  - product/ml/train/REPORT.md
+  - product/ml/train/tests/test_report.py
+  depends_on:
+  - T018
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T020
+  title: '[Paul] ort integration: load ONNX + meta at boot, contract check, Platt
+    + asserted-class confidence'
+  description: '(a) BUILD — product/api/src/inference/model.rs: `Model::load(path)
+    -> Result<Model>` loading <path> (ONNX via ort, single session, CPU, 1 intra-op
+    thread per request budget) and <path>.meta.json — define this sidecar schema HERE
+    and document it (the exporter T021 must conform): {model_version, feature_contract,
+    calibration:{type:"platt",a,b}, threshold, git_sha, seed, manifest_sha256, feature_names:[23],
+    train_feature_means:[23], train_feature_stds:[23], feature_importance:[23], direction_sign:[23]}.
+    Abort startup (process exit non-zero with a clear log) if feature_contract !=
+    CONCORDE_FEATURE_CONTRACT or feature_names != features::FC1_NAMES (FR-006, R-08).
+    `score(&[f64;23]) -> Scored { p_synthetic, is_synthetic, confidence }` applying
+    sigmoid(a·raw+b), threshold from CONCORDE_THRESHOLD if set else meta, and confidence
+    = p if is_synthetic else 1−p (§8.4). Wire into AppState (state.rs gains model:
+    Arc<Model>) and main.rs loads it before binding the socket (NFR-007: ready <=
+    5 s, no lazy load); /health reports model_version. For tests, product/api/tests/fixtures/make_dummy_model.py
+    builds a tiny 23-input ONNX (Gemm + Sigmoid) and its meta; commit the resulting
+    dummy_fc1.onnx (+ .meta.json) — ONNX files are versioned deliberately.
+
+    (b) VERIFY — Tests: loading the dummy model succeeds and score() is monotonic
+    in the input; a meta with feature_contract "fc-2" or a permuted feature_names
+    list makes Model::load return Err and main exit non-zero (spawn the binary in
+    a test); cold start with the dummy model < 5 s. Manual: startup log shows model_version.
+
+    (c) DOCS — product/api/README.md: the meta.json schema (this is the interface
+    T021 conforms to) and the FR-006 abort rule.
+
+    '
+  scope:
+  - product/api/src/inference/
+  - product/api/src/state.rs
+  - product/api/src/main.rs
+  - product/api/tests/fixtures/
+  - product/api/src/routes/health.rs
+  depends_on:
+  - T014
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T021
+  title: '[Diego] ONNX export + versioned artifact with meta sidecar (ADR-004, NFR-009)'
+  description: '(a) BUILD — product/ml/export/export_onnx.py: convert product/ml/data/model_lgbm.txt
+    to ONNX with onnxmltools (float input [None,23], output probability of class 1
+    as a single float — verify the graph exposes probabilities, not labels), write
+    product/artifacts/model.onnx and product/artifacts/model.onnx.meta.json EXACTLY
+    in the schema documented by T020 in product/api/README.md (model_version "concorde-b-<n>"
+    bumped by the script, calibration from product/ml/data/calibration.json, means/stds/importances/direction
+    from train_meta.json, git_sha, seed, manifest_sha256). Keep product/artifacts/CHANGELOG.md
+    with one line per exported version.
+
+    (b) VERIFY — pytest: onnxruntime output equals LightGBM predict_proba on all 353
+    feature rows within 1e-5; meta validates against the schema; `cargo run` with
+    CONCORDE_MODEL_PATH=product/artifacts/model.onnx boots and /health shows the new
+    model_version (run from this task, do not edit Rust).
+
+    (c) DOCS — product/ml/README.md export section; product/artifacts/README.md (what
+    each file is, how to reproduce from the seed + manifest hash).
+
+    '
+  scope:
+  - product/ml/export/
+  - product/artifacts/model.onnx
+  - product/artifacts/model.onnx.meta.json
+  - product/artifacts/CHANGELOG.md
+  - product/artifacts/README.md
+  depends_on:
+  - T018
+  - T020
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T022
+  title: '[Paul] /detect end-to-end: parser → decode → VAD → features → ONNX → verdict,
+    verified with Altur''s judge client (MUST anchor)'
+  description: '(a) BUILD — product/api/src/pipeline.rs: `analyze_bytes(state, bytes)
+    -> Result<Analysis>` running decode (T009) -> detect_turns (T011) -> features::extract
+    (T014) -> model.score (T020), recording per-stage timings_ms {decode, vad, features,
+    inference, total} and returning turns, events (overlap/interruption/silence per
+    the §8.2 definitions: interruption = caller starts inside an agent turn; silence
+    = mutual gap > 2 s), named features and the Scored verdict. Replace the placeholder
+    in routes/detect.rs with the real pipeline, still inside run_failsafe; emit ONE
+    structured JSON log line per request (request_id, call_id, bytes, duration_s,
+    turn counts, timings, p_synthetic, verdict, model_version — never audio, never
+    transcripts, NFR-008). Degenerate calls (no caller turns, single active channel)
+    must still return a real model verdict, not the fallback, because the extractor
+    defines them; the fallback is only for undecodable input.
+
+    (b) VERIFY — PRIMARY (the judge''s own scorer): `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py
+    --url http://127.0.0.1:8080/detect --split val --n 0 --out product/ml/data/val_check_local.json`
+    must show answered: 71, errors: 0, balanced_accuracy clearly above 0.5 (spec §2.3
+    "Mínimo": better than chance) and consistent with product/ml/train/REPORT.md within
+    ±0.01, auc and brier populated (every answer carries confidence), max_latency_s
+    well under 30. SECONDARY: integration test on 20 val clips asserting HTTP 200,
+    exact key set {is_synthetic, confidence}, confidence in [0,1]; latency test: a
+    180 s clip decodes+VAD+features+inference in < 1.3 s on the dev laptop (internal
+    budget NFR-001: 800 + 400 + 50 ms). `cargo test` green.
+
+    (c) DOCS — product/api/README.md: pipeline diagram (text), the per-stage budget
+    table, and the check_endpoint.py command as the canonical smoke test; from this
+    task on every later task is an improvement gated on this one.
+
+    '
+  scope:
+  - product/api/src/pipeline.rs
+  - product/api/src/routes/detect.rs
+  - product/api/tests/detect_e2e.rs
+  depends_on:
+  - T008
+  - T021
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T023
+  title: '[Paul] Caddy + systemd unit + deploy.sh for the Rust binary'
+  description: '(a) BUILD — product/deploy/Caddyfile: a site block for the HOSTNAME
+    recorded in product/deploy/DOMAIN.md (T054) so Caddy issues a Let''s Encrypt certificate
+    automatically and serves https://HOSTNAME on :443 (Altur''s client uses Python
+    urllib, which requires a publicly trusted certificate — a bare IP or self-signed
+    cert would fail) with :80 redirecting to https; plus a second, IP-only :80 block
+    for http://PUBLIC_IP kept strictly as an emergency fallback (documented, never
+    the URL given to the judge); reverse_proxy /detect /analyze /health /metrics /version
+    /feed/* /ws to 127.0.0.1:8080 with request_body max_size 20MB; static root /opt/concorde/console
+    for everything else (added now so the console deploy later only drops files).
+    product/deploy/concorde-api.service: User=concorde, WorkingDirectory=/opt/concorde,
+    EnvironmentFile=/opt/concorde/.env, ExecStart=/opt/concorde/bin/concorde-api,
+    Restart=always, RestartSec=2, LimitNOFILE=65536, MemoryMax=2500M. product/deploy/deploy.sh
+    (run over Tailscale: `ssh -p 2222 root@100.93.147.55`): `cargo build --release`
+    in product/ ON THE SERVER as user concorde (swap is ready from T003), copies the
+    binary + product/artifacts/ to /opt/concorde, writes GIT_SHA into /opt/concorde/.env,
+    `systemctl restart concorde-api`, waits for /health; `--standby <ip>` flag stub
+    documented for §18.3.
+
+    (b) VERIFY — `caddy validate --config product/deploy/Caddyfile` passes locally
+    (with a dummy IP substituted); `systemd-analyze verify product/deploy/concorde-api.service`
+    passes; shellcheck deploy.sh clean. Actual first deploy is T024.
+
+    (c) DOCS — product/deploy/README.md: file inventory, the exact commands, the rule
+    "judge URL = https://HOSTNAME/detect; http://PUBLIC_IP is fallback only", and
+    the env template reference.
+
+    '
+  scope:
+  - product/deploy/Caddyfile
+  - product/deploy/concorde-api.service
+  - product/deploy/deploy.sh
+  - product/deploy/README.md
+  depends_on:
+  - T003
+  - T001
+  - T054
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T024
+  title: '[Paul] First public deploy over https: placeholder /detect reachable by
+    Altur''s client from the internet (F1 exit criterion)'
+  description: '(a) BUILD — Using product/deploy/deploy.sh over Tailscale (`ssh -p
+    2222 root@100.93.147.55`): clone the repo on the server (decide public vs private
+    repo first — if private, generate a read-only deploy key ON THE SERVER and register
+    it on GitHub; never copy a personal key), build, install the unit and the Caddyfile,
+    start both services. Record the procedure and outputs in product/deploy/DEPLOY_LOG.md
+    (timestamps, commit SHA deployed, outputs).
+
+    (b) VERIFY — From a laptop on mobile data (not the venue Wi-Fi), against the PUBLIC_IP
+    from product/deploy/SERVER.md (never the Tailscale address): `curl -s https://HOSTNAME/health`
+    returns 200 with git_sha over a trusted certificate (Caddy obtained it on first
+    start; `curl -vI` shows the Let''s Encrypt chain); PRIMARY: `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py
+    --url https://HOSTNAME/detect --split val --n 10` reports answered: 10, errors:
+    0 (this proves Python trusts the chain); the http://PUBLIC_IP fallback also answers;
+    `systemctl kill -s KILL concorde-api` recovers within 30 s (Restart=always). Paste
+    all outputs into DEPLOY_LOG.md.
+
+    (c) DOCS — product/deploy/DEPLOY_LOG.md as above; product/deploy/SERVER.md gets
+    the repo-visibility decision and deploy-key note.
+
+    '
+  scope:
+  - product/deploy/DEPLOY_LOG.md
+  - product/deploy/SERVER.md
+  depends_on:
+  - T023
+  - T008
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T025
+  title: '[Paul] Deploy the real model; score the full val split with Altur''s client
+    against the public URL; measure p95/p99'
+  description: '(a) BUILD — Re-run product/deploy/deploy.sh with the T022 build and
+    product/artifacts/model.onnx; make sure /opt/concorde/.env has CONCORDE_MODEL_PATH=/opt/concorde/artifacts/model.onnx,
+    CONCORDE_FEATURE_CONTRACT=fc-1, CONCORDE_SEMANTIC_ENABLED=false for now (values
+    are filled by a teammate; never commit them). Write product/deploy/measure_latency.sh:
+    reads the server''s JSON logs after a check_endpoint run and computes server-side
+    p50/p95/p99 of timings.total (excludes network, NFR-001).
+
+    (b) VERIFY — /health on https://HOSTNAME shows the real model_version; PRIMARY:
+    `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url https://HOSTNAME/detect
+    --split val --n 0 --out val_check_public.json` from a laptop on mobile data: answered
+    71, errors 0, balanced_accuracy / auc / brier recorded, max_latency_s < 30 with
+    margin; then measure_latency.sh: server-side p95 <= 3000 ms and p99 <= 5000 ms
+    (internal NFR-001 target). Record everything in product/deploy/DEPLOY_LOG.md with
+    the commit SHA. If the internal budget is missed, note which stage and open a
+    follow-up via add_task.py — do not tune Rust here.
+
+    (c) DOCS — product/deploy/DEPLOY_LOG.md (dated section) and docs/latency-report.md
+    with the client-side and server-side percentile tables cited by the README and
+    the exec view.
+
+    '
+  scope:
+  - product/deploy/measure_latency.sh
+  - product/deploy/DEPLOY_LOG.md
+  - docs/latency-report.md
+  depends_on:
+  - T024
+  - T022
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T026
+  title: '[Paul] /metrics, full /health deps, /version (FR-010, FR-011, NFR-008)'
+  description: '(a) BUILD — product/api/src/metrics.rs: process-wide counters (requests,
+    errors/fallbacks, by route and by outcome) and latency histograms (hdrhistogram)
+    per route with p50/p95/p99; recorded from pipeline.rs via a small `record()` hook.
+    product/api/src/routes/metrics.rs: GET /metrics JSON (and Prometheus text if `Accept:
+    text/plain`). product/api/src/routes/health.rs: add deps {"tigerdata":"ok|degraded|disabled","gemini":"ok|degraded|disabled"}
+    from a `DepStatus` registry that other modules update (never probe external services
+    inside /health — it must return 200 with no network). product/api/src/routes/version.rs:
+    GET /version {git_sha, build_time, rustc, model_version, feature_contract}.
+
+    (b) VERIFY — Tests: after 3 /detect calls /metrics shows count 3 and non-zero
+    p50; a forced fallback increments the fallback counter; /health returns 200 when
+    the registry says degraded; /version keys present.
+
+    (c) DOCS — product/api/README.md routes table updated with the three routes and
+    example bodies.
+
+    '
+  scope:
+  - product/api/src/metrics.rs
+  - product/api/src/routes/metrics.rs
+  - product/api/src/routes/health.rs
+  - product/api/src/routes/version.rs
+  - product/api/src/pipeline.rs
+  depends_on:
+  - T022
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T027
+  title: '[Paul] Live feed: in-memory ring buffer of recent verdicts + GET /feed/recent
+    + WebSocket /ws'
+  description: '(a) BUILD — product/api/src/feed.rs: bounded ring (last 500) of FeedEvent
+    {id, ts, duration_s, is_synthetic, confidence, latency_ms, signals{behavioral,
+    semantic|null, acoustic|null}, model_version} pushed by pipeline.rs after every
+    /detect or /analyze (no audio, no features); tokio broadcast channel. Also retain
+    the last 50 full /analyze payloads keyed by id (GET /feed/analysis/:id; 404 ->
+    the console shows its "analysis not retained" state) so the detail view can open
+    a call from the live table without re-uploading audio. product/api/src/routes/feed.rs:
+    GET /feed/recent?limit=N and GET /ws (axum ws) streaming new events as JSON. Basic
+    rate limit on /ws connections (NFR-011).
+
+    (b) VERIFY — Tests: two /detect calls then /feed/recent returns 2 events newest-first;
+    a ws client receives an event pushed after connect; ring never exceeds 500.
+
+    (c) DOCS — product/api/README.md: feed/ws section with the event schema (the console
+    client in T006 already types it — keep the names identical: id, ts, duration_s,
+    is_synthetic, confidence, latency_ms, signals, model_version).
+
+    '
+  scope:
+  - product/api/src/feed.rs
+  - product/api/src/routes/feed.rs
+  - product/api/src/pipeline.rs
+  depends_on:
+  - T026
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T028
+  title: '[Paul] POST /analyze superset: timeline, events, top factors, rationale,
+    meta (FR-009, ADR-013)'
+  description: '(a) BUILD — product/api/src/analysis/: from pipeline::Analysis build
+    the §8.2 payload exactly: verdict{is_synthetic,confidence,threshold}, signals{behavioral:
+    p_synthetic, semantic: null, acoustic: null}, degraded{semantic_available:false,
+    acoustic_available:false} (until T038/T045 flip them), timeline = confidence-over-time
+    computed by re-extracting features on turns truncated at t for 16 evenly spaced
+    t plus the end (cheap: tabular inference), turns{caller,agent}, events, features
+    (named), top_factors = top 5 by |importance_i × (x_i − mean_i)/std_i| from the
+    meta sidecar with direction from direction_sign and weight normalised to sum 1,
+    rationale = deterministic template sentences from the top 3 factors (e.g. "Response
+    latency stayed within CV 0.09 across 12 agent turns..."), timings_ms, meta. product/api/src/routes/analyze.rs:
+    POST /analyze (same parser, same failsafe but on failure returns a 200 {error:"..."}
+    envelope — this route is not scored).
+
+    (b) VERIFY — Integration test on 3 val clips: payload has every §8.2 key; timeline
+    is length 17 and its last confidence equals verdict.confidence; top_factors weights
+    sum to 1±1e-6; rationale is non-empty and mentions the top feature name. JSON
+    schema file product/api/src/analysis/analyze.schema.json validated in test.
+
+    (c) DOCS — product/api/README.md /analyze section with a full example body; the
+    /detect contract stays exactly two keys.
+
+    '
+  scope:
+  - product/api/src/analysis/
+  - product/api/src/routes/analyze.rs
+  depends_on:
+  - T022
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T029
+  title: '[Paul] /analyze waveform envelope (peaks per 50 ms) for the console''s dual-channel
+    plot'
+  description: '(a) BUILD — product/api/src/analysis/waveform.rs: from the decoded
+    channels produce waveform{caller:[...], agent:[...], bucket_ms:50} where each
+    value is the peak |sample| in the bucket (0..1, 3-decimal); ~3600 floats per channel
+    for a 180 s call. Add to the /analyze payload only (never /detect). This is a
+    console-only enrichment of §8.2 — approved by Paul as ADR-013 grants freedom on
+    /analyze.
+
+    (b) VERIFY — Test: a 2 s synthetic file gives 40 buckets per channel; a channel
+    of silence gives all zeros; peaks of a −6 dBFS tone are ≈0.5.
+
+    (c) DOCS — product/api/README.md /analyze section: waveform field documented as
+    "console-only".
+
+    '
+  scope:
+  - product/api/src/analysis/waveform.rs
+  depends_on:
+  - T028
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T030
+  title: '[Néstor] Live monitor view: dense verdict table + stats strip'
+  description: '(a) BUILD — product/console/src/views/live/: stats strip (PROCESSED
+    · 24 H, SYNTHETIC RATE, REVIEW QUEUE, CURRENT p95 with budget note "budget 3 000
+    ms" amber when over, DEGRADATION RATE) in 19px mono values with 11px labels; dense
+    table columns CALL ID (mono, abbreviated) · DURATION (m:ss) · VERDICT (dot + label,
+    tone colour) · CONFIDENCE (f2) · LATENCY (ms) · SIGNALS (three pips: behavioral/semantic/acoustic
+    — RED_DIM/GREEN_DIM fill with 2px right border in the full colour, hatch when
+    null) · TIME. Rows 7px 12px compact (comfortable toggle), row click routes to
+    /calls/:id, keyboard navigable. Fed by the Feed class (T006): WS then polling,
+    no error state — an OFFLINE feed keeps the last rows and marks the feed chip.
+    Loading / empty ("No calls processed yet") / degraded states defined.
+
+    (b) VERIFY — vitest: renders 14 fixture rows with correct tone per verdictOf;
+    a null semantic renders the hatch pip with title "semantic degraded"; a new feed
+    event prepends a row; empty state renders. Manual with VITE_USE_MOCKS=1.
+
+    (c) DOCS — product/console/README.md view 1 section (columns, states).
+
+    '
+  scope:
+  - product/console/src/views/live/
+  depends_on:
+  - T006
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T031
+  title: '[Néstor] Detail view part 1: dual-channel synchronized waveform canvases
+    + shared time scale'
+  description: '(a) BUILD — product/console/src/views/detail/waveform/: TimeScale
+    util (duration -> px, 84px label gutter, ResizeObserver-driven width) shared by
+    every later overlay; two <canvas> lanes CH0 CALLER / CH1 AGENT (66px each, lane
+    label column 84px, borders oklch(0.25 0.015 252)) drawing the peak envelope from
+    analysis.waveform (mirrored bars, colour oklch(0.62 0.03 252) baseline, caller
+    turns tinted with the verdict tone wash; when waveform is absent draw the turn
+    intervals as blocks so the view never blanks), devicePixelRatio-aware, time axis
+    under the plot (0/¼/½/¾/end in m:ss, mono 11px). Hover scrub: playhead line oklch(0.95
+    0.006 252) + scrub box showing t and the interpolated confidence (exposed via
+    a callback for T033).
+
+    (b) VERIFY — vitest with a canvas mock: draws exactly N buckets across the width;
+    scale.xFor(t) is linear and clamped; a fixture without waveform still renders
+    turn blocks. Manual: resizing the window keeps both lanes aligned.
+
+    (c) DOCS — product/console/README.md view 2 section: TimeScale API (used by markers
+    and trace tasks).
+
+    '
+  scope:
+  - product/console/src/views/detail/waveform/
+  depends_on:
+  - T006
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T032
+  title: '[Néstor] Detail view part 2: event markers overlay (overlap / interruption
+    / silence) + legend + event log'
+  description: '(a) BUILD — product/console/src/views/detail/markers/: absolute-positioned
+    1px vertical markers over the plot using TimeScale from T031: overlap = dashed
+    oklch(0.95 0.006 252) 6px/3px with a rotated-square glyph; interruption = solid
+    oklch(0.86 0.01 252) with a circle glyph; silence > 2 s = dotted oklch(0.72 0.012
+    252) 3px/4px with a hollow square glyph (1px border oklch(0.8 0.01 252)). Legend
+    row with glyph + label + mono count. EVENT LOG table (TIME m:ss · TYPE · DURATION)
+    below the factors, rows 6px 10px. pointer-events none on markers so scrubbing
+    still works.
+
+    (b) VERIFY — vitest: fixture with 6 events renders 6 markers at xFor(t) px and
+    legend counts match; each type gets its own glyph style; zero events renders "No
+    events detected" in the log.
+
+    (c) DOCS — product/console/README.md view 2 section: marker legend table.
+
+    '
+  scope:
+  - product/console/src/views/detail/markers/
+  depends_on:
+  - T031
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T033
+  title: '[Néstor] Detail view part 3: confidence-over-time trace lane (P(SYN))'
+  description: '(a) BUILD — product/console/src/views/detail/trace/: third canvas
+    lane P(SYN) TRACE (84px) aligned via TimeScale: step/linear path of analysis.timeline,
+    threshold line at verdict.threshold (dashed MUTED), area above threshold tinted
+    RED wash and below GREEN wash, final point marked with the verdict tone; the scrub
+    callback from T031 shows the interpolated value. Respect prefers-reduced-motion
+    (no animated draw-in otherwise a 300 ms linear reveal).
+
+    (b) VERIFY — vitest: 17 timeline points map to 17 x positions; last point equals
+    verdict.confidence label; threshold line at the right y; reduced-motion disables
+    animation.
+
+    (c) DOCS — product/console/README.md view 2 section: trace semantics (it is the
+    model re-scored on truncated prefixes, not a streaming model).
+
+    '
+  scope:
+  - product/console/src/views/detail/trace/
+  depends_on:
+  - T031
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T034
+  title: '[Néstor] Detail view part 4: signal breakdown panel with explicit availability'
+  description: '(a) BUILD — product/console/src/views/detail/signals/: SIGNAL BREAKDOWN
+    panel with three rows behavioral / semantic / acoustic: label, value (f2, mono
+    19px? no — 13px mono here, 19px is reserved for the header metrics), a track bar
+    (bg oklch(0.26 0.015 252)) filled RED when value >= 0.5 else GREEN with width
+    pct(value); when the signal is null or degraded.*_available is false: track =
+    hatch, fill width 0, value text "DEGRADED" in 11px letter-spacing 0.06em MUTED,
+    note "signal shed — verdict is behavioral-only". Never render a degraded signal
+    as 0.00.
+
+    (b) VERIFY — vitest: fixture with semantic null shows hatch + DEGRADED and no
+    "0.00" text anywhere in the panel; available signals show the bar with the right
+    colour.
+
+    (c) DOCS — product/console/README.md: the "degraded ≠ zero" rule with a screenshot
+    path.
+
+    '
+  scope:
+  - product/console/src/views/detail/signals/
+  depends_on:
+  - T006
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T035
+  title: '[Néstor] Detail view part 5: top factors table, rationale, stage timings,
+    meta'
+  description: '(a) BUILD — product/console/src/views/detail/factors/: TOP CONTRIBUTING
+    FACTORS · MODEL FEATURE IMPORTANCE (FR-009) grid columns minmax(150px,1.6fr) 64px
+    88px minmax(60px,1fr) = FEATURE (mono name + 11px note with the F-id and the §9
+    one-liner from a static map of the 23 names) · VALUE (f2, integers unformatted)
+    · DIRECTION (arrow + label synthetic/human coloured RED/GREEN) · WEIGHT (bar relative
+    to the max weight); RATIONALE paragraph (13px INK2); STAGE TIMINGS bars decode/vad/features/semantic/inference/total
+    (semantic null = hatch, total in INK); META rows MODEL / CONTRACT / GIT SHA /
+    CALLER TURNS / DURATION in mono.
+
+    (b) VERIFY — vitest: 5 factors render in order with weights scaled to the max;
+    semantic null timing renders the hatch; meta shows feature_contract fc-1 from
+    the fixture.
+
+    (c) DOCS — product/console/README.md view 2 section: the feature-note map lives
+    in factors/featureNotes.ts and must match product/artifacts/feature_contract_fc-1.json
+    names.
+
+    '
+  scope:
+  - product/console/src/views/detail/factors/
+  depends_on:
+  - T006
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T036
+  title: '[Néstor] Detail view assembly: recent-calls sidebar, header metrics, layout,
+    /calls/:id data flow'
+  description: '(a) BUILD — product/console/src/views/detail/DetailView.tsx + index:
+    layout per the reference — RECENT CALLS sidebar (flex 1 1 200px; each row: 3px
+    tone bar, mono short id, "verdict · conf" line; selected row bg hover colour)
+    and the main panel (flex 100 1 400px, padding 14px 18px 22px) with the header
+    metric row CALL (mono 19px) · verdict badge · CONFIDENCE · THRESHOLD · DURATION
+    · PROCESS LATENCY, then the plot (waveform T031 + markers T032 + trace T033 inside
+    one bordered container bg oklch(0.205 0.014 252)), then a two-column grid: factors+rationale
+    (T035) left, signals (T034) + timings + meta right, event log full width. Data:
+    the sidebar comes from the feed; selecting a call fetches /analyze for that id
+    from the feed cache (the API keeps the last analyses in memory — if not available
+    show the "analysis not retained" state with the feed row data only). Loading skeleton,
+    empty ("Select a call"), degraded states.
+
+    (b) VERIFY — vitest: full view renders with the fixture; clicking a sidebar row
+    updates the header; missing analysis shows the retained-only state; the view mounts
+    in < 200 ms with 14 calls. Manual: a fixture call is navigable end-to-end with
+    mocks.
+
+    (c) DOCS — product/console/README.md: component tree of view 2.
+
+    '
+  scope:
+  - product/console/src/views/detail/DetailView.tsx
+  - product/console/src/views/detail/index.ts
+  - product/console/src/views/detail/Sidebar.tsx
+  - product/console/src/views/detail/HeaderMetrics.tsx
+  - product/console/src/views/detail/DetailView.test.tsx
+  depends_on:
+  - T032
+  - T033
+  - T034
+  - T035
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T037
+  title: '[Néstor] Demo zone: arbitrary WAV upload → live verdict, pre-wired robustness
+    clips (FR-013)'
+  description: '(a) BUILD — product/console/src/views/demo/: ARBITRARY WAV · FR-013
+    drop zone (dashed LINE border, hover border oklch(0.55 0.02 252) bg oklch(0.22
+    0.015 252)), PRE-WIRED ROBUSTNESS CLIPS list (two entries: "Human caller · recorded
+    in-house" and "Synthetic caller · unseen engine", files served from product/console/public/demo/
+    — real clips are dropped there by T043/T044, keep placeholders named clip_human_01.wav
+    and clip_synth_unseen_01.wav out of git via .gitignore *.wav), STATUS tag IDLE
+    / ANALYSING / HTTP 200, stage progress bars, verdict badge (AWAITING INPUT dashed
+    until done), CONFIDENCE, RESPONSE BODY showing the exact two-key /detect JSON
+    (call /detect for the body AND /analyze for the breakdown, in parallel), note
+    text from the reference. After a run, offer "Open in detail" which mounts DetailView
+    with the fresh analysis.
+
+    (b) VERIFY — vitest (msw): uploading a file calls /detect and /analyze, renders
+    the two-key body verbatim and the badge tone; a failed /analyze still shows the
+    /detect result (never blank). Manual: run both pre-wired clips against VITE_USE_MOCKS=1.
+
+    (c) DOCS — product/console/README.md demo section + where to drop the two clips.
+
+    '
+  scope:
+  - product/console/src/views/demo/
+  - product/console/public/demo/README.md
+  depends_on:
+  - T036
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T038
+  title: '[Néstor+Paul] Console build served by Caddy, wired to the real backend,
+    one val call navigable end-to-end (F3 exit)'
+  description: '(a) BUILD — product/deploy/deploy-console.sh: `npm ci && npm run build`
+    locally (or on the server), rsync product/console/dist to /opt/concorde/console;
+    Caddyfile already serves it (T023) — adjust the static block / SPA fallback (`try_files
+    {path} /index.html`) in product/deploy/Caddyfile if needed. Set VITE_API_BASE
+    to same-origin for the build. Feed the live table by replaying 20 val clips through
+    /detect from a laptop (product/deploy/replay_val.sh, uses the dataset path locally,
+    sends audio over the wire only to our own server).
+
+    (b) VERIFY — On https://HOSTNAME: Monitor shows the 20 replayed calls, clicking
+    one opens Detail with waveform, markers, trace, factors from the real /analyze;
+    Demo uploads a clip and shows the two-key body; Exec tab shows its placeholder
+    or real stats. All three views reachable in < 20 s from landing on a 13-inch laptop
+    at 1× zoom. Record in product/deploy/DEPLOY_LOG.md.
+
+    (c) DOCS — product/deploy/README.md console section; product/deploy/DEPLOY_LOG.md
+    dated entry.
+
+    '
+  scope:
+  - product/deploy/deploy-console.sh
+  - product/deploy/replay_val.sh
+  - product/deploy/Caddyfile
+  - product/deploy/DEPLOY_LOG.md
+  depends_on:
+  - T025
+  - T027
+  - T028
+  - T029
+  - T030
+  - T036
+  - T037
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T039
+  title: '[Paul] Fault-injection suite: every invalid input returns 200 + fallback
+    (FR-008, NFR-005, R-11)'
+  description: '(a) BUILD — product/api/tests/fault_injection.rs generating every
+    case in code: the canonical Altur JSON with a truncated WAV (header only; half
+    data), with zero bytes, with a mono file, a 44.1 kHz file, a 24-bit file, a non-audio
+    blob (random 1 MB), with sample_rate/channels fields that contradict the WAV header
+    (16000 / 1 while the WAV is 8000 / 2 — header wins, real verdict), JSON with unknown
+    key, JSON with empty string, multipart with two files, raw base64 of garbage,
+    a 20 MB body (> CONCORDE_MAX_BODY_BYTES = 16 MB), a valid WAV of 0.5 s, a valid
+    600 s silent WAV, a valid WAV with only the agent channel active, only the caller
+    channel active. Assert HTTP 200, key set exactly {is_synthetic, confidence}, and
+    for the undecodable ones the fallback body; for the degenerate-but-decodable ones
+    a real verdict with confidence in [0,1]. Assert the process is still alive after
+    all cases and that each incident produced a structured log line.
+
+    (b) VERIFY — `cargo test --test fault_injection` green with CONCORDE_STRICT unset;
+    with CONCORDE_STRICT=1 the undecodable cases return 500 (proves the switch). product/api/tests/fault_injection_remote.sh
+    <base_url> replays the same cases over HTTP against the public deployment (used
+    by T055).
+
+    (c) DOCS — product/api/README.md fault-semantics table: case → expected body.
+
+    '
+  scope:
+  - product/api/tests/fault_injection.rs
+  - product/api/tests/fault_injection_remote.sh
+  depends_on:
+  - T022
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T040
+  title: '[Paul] Concurrency + soak test against the deployment (NFR-004, NFR-006)
+    — engineering targets, the judge itself is sequential'
+  description: '(a) BUILD — Altur''s client sends one call at a time from our station,
+    so concurrency is not a judging condition; NFR-004/006 stay as engineering evidence
+    for the Feasibility criterion. product/api/tests/load/run_load.py (asyncio + httpx,
+    canonical Altur JSON bodies): (1) concurrency: 8 concurrent clients × 10 requests
+    each with a 180 s val clip, report client-side and server-side (from /metrics)
+    p95/p99; (2) soak: 4 req/s for 30 minutes as a background run (`nohup ... &`,
+    results appended to a log — never block the session), sampling `ps -o rss` of
+    concorde-api over Tailscale every 30 s. Thresholds: p99 <= 5000 ms under 8-way
+    concurrency; RSS <= 1.5 GB throughout; zero non-200 responses. If the local ASR
+    (T045) is enabled at test time, also report how many requests had semantic_available=false
+    because of the ASR semaphore.
+
+    (b) VERIFY — Both reports written to docs/load-report.md with pass/fail per threshold
+    and the commit SHA + model_version tested. If a threshold fails, file a follow-up
+    via add_task.py; this task''s DoD is the honest report.
+
+    (c) DOCS — docs/load-report.md; README final cites it.
+
+    '
+  scope:
+  - product/api/tests/load/
+  - docs/load-report.md
+  depends_on:
+  - T025
+  - T026
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T041
+  title: '[Paul] Snapshot, cold standby procedure, contingency runbook (NFR-002, §18.3)'
+  description: '(a) BUILD — Take a Vultr snapshot of the instance after the real-model
+    deploy; document in product/deploy/RUNBOOK.md: how to restore the snapshot to
+    a second instance, `deploy.sh --standby <ip>` (implement the flag: same binary
+    + same artifacts + same .env to another host), the exact restart commands, what
+    is allowed during judging (restart, switch to standby, edit env) and what is forbidden
+    (code changes), the /health watch loop one-liner for the designated person, and
+    who to call. Add product/deploy/watch_health.sh (curl every 15 s, beep + print
+    on non-200).
+
+    (b) VERIFY — Snapshot visible in the Vultr panel (id recorded); `deploy.sh --standby`
+    dry-run prints the plan; watch_health.sh runs against the public IP for 2 minutes
+    without false alarms.
+
+    (c) DOCS — product/deploy/RUNBOOK.md (this is the document read aloud by the three
+    in §18.4).
+
+    '
+  scope:
+  - product/deploy/RUNBOOK.md
+  - product/deploy/watch_health.sh
+  - product/deploy/deploy.sh
+  depends_on:
+  - T025
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T042
+  title: '[Diego] Local Whisper transcription of the dataset (same whisper.cpp models
+    that will serve) + probe ground truth + answer-type rules — background job'
+  description: '(a) BUILD — Fully local semantic layer (approved route: no audio or
+    text ever leaves our machines). product/ml/semantic/get_models.sh downloads ggml-tiny.bin
+    and ggml-base.bin (sha256 pinned) into product/ml/semantic/models/ (gitignored);
+    product/ml/semantic/transcribe.py uses the whisper.cpp CLI (build it once from
+    source into product/ml/semantic/whisper.cpp/, gitignored; CPU-only) to transcribe,
+    per call and per turn (turns.json boundaries, 8→16 kHz resample), BOTH channels
+    with BOTH models (tiny and base, language es), caching product/ml/semantic/cache/transcripts/<model>/<anon_id>.json.
+    Resumable, `nohup ... &`, prints ETA (measured: base at 4 threads ≈ 1 s per agent
+    channel on Diego''s laptop; the whole dataset for both models and both channels
+    is roughly 30–60 min — start it early). Ground truth for the probe detector (T043):
+    mark, per call, the agent turn whose transcript contains the fixed probe phrase
+    "esto es sobre su cuenta nómina plus o sobre su crédito verde" (measured present
+    in >= 60 % of calls; ASR spelling variants "no mina plus", "no mine plus", "nomina
+    fluz" must be matched with a fuzzy rule) and the first caller turn after it. product/ml/semantic/rules.py:
+    answer_type classifier over the caller''s answer text — denial ("no tengo", "no
+    cuento con", "no sé", "no existe", "no me aparece", "ninguna"), hedge ("creo",
+    "no estoy seguro", "me imagino", "más o menos"), assertion_product (names one
+    of the offered products), assertion_numeric (>= 3 digits), assertion_name, question_back
+    ("¿cuál?", "¿qué es?"), other — plus word_count and response latency; `invention_score(answer_type,
+    ...) -> float in [0,1]` as a documented lookup table (assertion_* high, denial/question_back
+    low, hedge middle). These rules are THE definition; T045 ports them to Rust and
+    parity-tests against them. Write product/ml/semantic/DIGEST.md with the rule table
+    and the per-label distribution of answer_type on the dataset (this is the first
+    honest look at whether F-23 carries signal).
+
+    (b) VERIFY — pytest: probe ground truth found in >= 55 % of calls for the base
+    model; rules classify 12 hand-written answers correctly (fixtures in the test);
+    transcripts cache is resumable (second run does zero work); no transcript text
+    is written anywhere except the gitignored cache.
+
+    (c) DOCS — product/ml/README.md semantic section: how to build whisper.cpp, run
+    the background job, cache layout, the rule table.
+
+    '
+  scope:
+  - product/ml/semantic/get_models.sh
+  - product/ml/semantic/transcribe.py
+  - product/ml/semantic/rules.py
+  - product/ml/semantic/DIGEST.md
+  - product/ml/semantic/__init__.py
+  - product/ml/semantic/tests/test_rules.py
+  depends_on:
+  - T022
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T043
+  title: '[Diego] Probe-turn detector: log-mel + subsequence-DTW template bank, validated
+    on the whole dataset, exported for Rust'
+  description: '(a) BUILD — product/ml/semantic/probe_detector.py: 32-band log-mel
+    at 8 kHz (n_fft 256, hop 80 = 10 ms, per-band z-normalisation, L2-normalised frames)
+    and open-begin/open-end (subsequence) DTW with cosine cost, normalised by template
+    length — exactly the reference implementation measured on 2026-09-12 (recall@1
+    29/30 with one template; positives scored <= 0.440, true negatives >= 0.449).
+    Build a bank of 3 templates from TRAIN calls whose probe turn is short (the phrase
+    alone, ~2.5 s) using T042''s ground truth; detector score = min over templates;
+    pick the threshold on train, validate on ALL calls with ground truth: recall,
+    precision, false-positive rate on calls without the probe, score margin distribution,
+    and per-label detection rate (a detector that fires differently by label would
+    leak). Export product/artifacts/probe_templates.json {version, mel_params, templates:[[frames×32
+    floats]], threshold, min_turn_frames} — this file is what the Rust detector (T045)
+    loads; keep it under 1 MB.
+
+    (b) VERIFY — pytest: recall >= 0.90 and false-positive rate <= 0.10 on the full
+    dataset with the exported threshold; detection rate difference between labels
+    <= 10 points; the JSON validates against a schema and re-loading it reproduces
+    the same scores on 5 calls (1e-6). Runtime of the pure-numpy detector per call
+    is printed (informational).
+
+    (c) DOCS — product/ml/README.md probe-detector section with the validation table;
+    product/artifacts/README.md entry for probe_templates.json.
+
+    '
+  scope:
+  - product/ml/semantic/probe_detector.py
+  - product/ml/semantic/tests/test_probe_detector.py
+  - product/artifacts/probe_templates.json
+  depends_on:
+  - T042
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T044
+  title: '[Diego] F-23 offline scoring with the local pipeline, A/B (FR-014), and
+    the bounded fusion tuned for balanced accuracy'
+  description: '(a) BUILD — product/ml/semantic/score_dataset.py: for every call,
+    apply the FULL local pipeline exactly as it will run in Rust: probe detector (T043)
+    on the agent turns → first caller turn after the detected probe → its cached transcript
+    (T042; run for BOTH tiny and base) → rules.py → invention_score; write product/ml/data/semantic_scores.csv
+    (anon_id, model, probe_detected, answer_type, invention_score, semantic_available).
+    product/ml/semantic/ab_report.py: (1) FR-014 A/B — LightGBM with the T017 protocol,
+    fc-1 only vs fc-1 + invention_score, val AUC / Brier / balanced accuracy for both;
+    (2) the RUNTIME FUSION for /detect: logit(p_final) = logit(p_behavioral) + w ·
+    (invention_score − 0.5) with a clamp |p_final − p_behavioral| <= max_delta_p (start
+    0.15); choose w on TRAIN out-of-fold to maximise BALANCED ACCURACY of the fused
+    verdict at the shipped threshold (Altur''s main metric), report val BA / AUC /
+    Brier of the fused verdict, the fraction of val verdicts that flip, and the same
+    for tiny vs base transcripts (this decides which model the server should run,
+    together with T057''s timing). Write product/artifacts/semantic_fusion.json {version,
+    w, max_delta_p, whisper_model, fitted_on, ba_val_behavioral, ba_val_fused}. Honest
+    outcome rule: if the fused BA on val is not higher than behavioral-only, set w
+    = 0 in the artifact and say so — the layer then stays visible in /analyze but
+    never moves the verdict.
+
+    (b) VERIFY — pytest: score_dataset is idempotent; AB_REPORT.md contains both AUCs,
+    both BAs, the delta and the fusion parameters; semantic_fusion.json validates
+    against a schema.
+
+    (c) DOCS — product/ml/semantic/AB_REPORT.md; docs/semantic-layer.md: design (everything
+    local, what runs where, the measured laptop timings, what T057 must confirm on
+    the server), fusion rule, and the honest expected live availability.
+
+    '
+  scope:
+  - product/ml/semantic/score_dataset.py
+  - product/ml/semantic/ab_report.py
+  - product/ml/semantic/AB_REPORT.md
+  - product/ml/semantic/tests/test_score_dataset.py
+  - docs/semantic-layer.md
+  - product/artifacts/semantic_fusion.json
+  depends_on:
+  - T042
+  - T043
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T057
+  title: '[Paul] Server-side ASR benchmark gate: measure whisper.cpp on the real Vultr
+    CPU before any Rust semantic work'
+  description: '(a) BUILD — The only number the local semantic design still lacks
+    is the real per-turn cost on the Vultr CPU (the laptop measurements were on an
+    Apple M5 Pro and the x86 factor is an estimate). Over Tailscale (`ssh -p 2222
+    root@100.93.147.55`): clone whisper.cpp into /opt/concorde/bench, `cmake -B build
+    -DCMAKE_BUILD_TYPE=Release && cmake --build build --target whisper-cli -j2`, download
+    ggml-tiny.bin and ggml-base.bin (sha256 pinned, same files T042 uses), and run
+    product/deploy/bench_asr.sh: the same measurement protocol as the laptop bench
+    — 3 repetitions each of a 1 s, 3 s, 6 s and 10 s Spanish speech segment at 16
+    kHz with `-t 2 -l es -nt -ac 512` (and `-ac 768` for the 10 s one), for tiny and
+    base, reporting encode / warm total per run and RSS; also one 30 s segment without
+    -ac. USE OUR OWN AUDIO ONLY (a teammate records the segments on a phone reading
+    four Spanish sentences; never dataset audio on the server). If the instance has
+    been resized to 4 vCPU, repeat with -t 4. Decision rule written into docs/asr-server-benchmark.md:
+    warm total per <= 6 s turn p95 <= 1200 ms → that model is approved for the live
+    path (prefer base if both pass); if only tiny passes → tiny; if neither passes
+    at 2 threads → resize to vc2-4c-8gb and re-run; if still failing → recommend CONCORDE_SEMANTIC_TIMEOUT_MS=2000
+    (total stays < 3 s with VAD <= 0.8 s) and, only if that fails too, escalate to
+    Diego before any external service is considered.
+
+    (b) VERIFY — docs/asr-server-benchmark.md contains the table (model × segment
+    × threads: encode, warm total p50/p95, RSS) and the explicit decision line naming
+    the approved model and threads; /opt/concorde/bench is removed afterwards except
+    the two model files, which move to /opt/concorde/artifacts/.
+
+    (c) DOCS — docs/asr-server-benchmark.md, including the vCPU count in use and the
+    model choice (SERVER.md is owned by T003/T024; T045 links to this doc instead).
+
+    '
+  scope:
+  - product/deploy/bench_asr.sh
+  - docs/asr-server-benchmark.md
+  depends_on:
+  - T003
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T045
+  title: '[Paul] Live local semantic vote in /detect: probe detector + whisper-rs
+    on one caller turn, hard timeout, bounded fusion, explicit degradation (ADR-008,
+    NFR-001, NFR-010)'
+  description: '(a) BUILD — product/api/src/semantic/: (1) `ProbeDetector` loading
+    product/artifacts/probe_templates.json (T043): 32-band log-mel at 8 kHz + subsequence
+    DTW in Rust (f32, band-limited), run over the agent turns after VAD; returns the
+    probe turn or None (~2M DP cells per call, expected a few ms — measure and log).
+    (2) `LocalAsr` via whisper-rs 0.16 (cmake + libclang on the build host, installed
+    by T003): ONE `WhisperContext` created at boot from CONCORDE_WHISPER_MODEL_PATH
+    (model approved by T057), a `WhisperState` per request, threads = CONCORDE_WHISPER_THREADS,
+    language es, no timestamps, audio_ctx chosen from the segment length (<= 10 s
+    → 512, <= 15 s → 768, else 1500), input = the first caller turn after the probe,
+    8→16 kHz resampled, capped at 15 s. A tokio Semaphore of CONCORDE_ASR_MAX_CONCURRENT
+    permits; if no permit is free the probe is SKIPPED immediately (reason=busy),
+    never queued — ASR runs on spawn_blocking so the async runtime never stalls. (3)
+    `rules.rs`: answer_type + invention_score ported line by line from product/ml/semantic/rules.py.
+    (4) Fusion from product/artifacts/semantic_fusion.json (w, max_delta_p) at boot:
+    logit(p_final) = logit(p_behavioral) + w·(invention_score − 0.5), clamped; verdict
+    and confidence (§8.4) from p_final. Flow in pipeline.rs: decode → VAD → probe
+    detector → SPAWN ASR → features → inference concurrently → wait for ASR only until
+    CONCORDE_SEMANTIC_TIMEOUT_MS (default 1500 from ASR start, T057 may raise it to
+    2000); on timeout the blocking task is abandoned and its result discarded. When
+    absent for any reason (no probe, busy, timeout, error, disabled): p_final = p_behavioral
+    exactly — deterministic behavioral-only verdict (NFR-010) — with semantic_available=false,
+    reason, probe_detected, and ASR latency in the structured log line (never the
+    transcript text). /analyze runs the same path with CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS
+    (default 8000) and reports signals.semantic, degraded.semantic_available, probe
+    time, answer_type (category only, never text), p_behavioral and p_final. Budget:
+    VAD <= 0.8 s + ASR <= 1.5 s → <= 2.3 s worst case, inside NFR-001 p95 <= 3.0 s
+    and far inside the judge''s 30 s. Ship product/api/src/bin/semantic_dump.rs: for
+    a WAV prints {probe_detected, probe_t, answer_type, invention_score} for the parity
+    test. product/deploy/get_whisper_model.sh downloads the approved ggml model (sha256
+    pinned) into /opt/concorde/artifacts/.
+
+    (b) VERIFY — Tests with a synthetic dialogue and the real model file (skipped
+    if absent): (1) probe detector finds a planted template turn and returns None
+    on a call without it; (2) ASR slow path (simulated via a tiny audio_ctx override
+    + sleep hook) → /detect answers within decode+VAD+timeout+50 ms with the behavioral
+    verdict and semantic_available=false; (3) fusion is monotonic in invention_score
+    and never moves p by more than max_delta_p; (4) semaphore exhausted → skipped
+    in < 1 ms; (5) CONCORDE_SEMANTIC_ENABLED=false yields byte-identical /detect output
+    to the timed-out case. PARITY (the skew guard): `semantic-dump` over 20 train
+    calls equals product/ml/semantic/score_dataset.py''s probe_detected / answer_type
+    / invention_score for the same whisper model on >= 18/20 (whisper.cpp thread scheduling
+    can change a token; document any disagreement instead of hiding it). MEASURE on
+    the server (T057''s model): run check_endpoint.py --split val --n 20 with the
+    layer enabled and record semantic_available rate, ASR latency p50/p95 and the
+    verdict deltas in docs/semantic-layer.md — this decides CONCORDE_SEMANTIC_ENABLED
+    for judging.
+
+    (c) DOCS — product/api/README.md semantic section: env switches, the fusion rule,
+    the privacy statement (all inference is local; no audio or text ever leaves the
+    server), the build requirements (cmake, libclang) and the parity command.
+
+    '
+  scope:
+  - product/api/src/semantic/
+  - product/api/src/routes/analyze.rs
+  - product/api/src/pipeline.rs
+  - product/api/src/bin/semantic_dump.rs
+  - product/deploy/get_whisper_model.sh
+  depends_on:
+  - T028
+  - T027
+  - T044
+  - T057
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T046
+  title: '[Néstor] Executive view: aggregate metrics + business case with visible
+    assumptions'
+  description: '(a) BUILD — product/console/src/views/exec/: stats strip CALLS PROCESSED
+    · 24 H, SYNTHETIC FLAGGED, p95 LATENCY (sub "Judge ceiling 30 000 ms, internal
+    target 3 000 ms"), DEGRADATION RATE, VAL ROC-AUC (from product/ml/data/metrics.json
+    copied into product/console/src/views/exec/metrics.json at build time — MEASURED
+    tag); VERDICT DISTRIBUTION · LAST 24 H bars (Verified human / Review / Synthetic
+    with tone colours, counts and pct from /metrics + feed); LATENCY bars p50/p90/p95/p99
+    relative to 3000 ms (RED when over); BUSINESS CASE AT ALTUR VOLUME table with
+    the banner "EVERY FIGURE BELOW IS A LABELLED ESTIMATE", columns INPUT / DERIVED
+    FIGURE · value · WHERE IT COMES FROM · tag (STATED / ESTIMATE / DERIVED / MEASURED
+    chips per tokens), rows exactly as the reference: Monthly call volume 150 000
+    000 (STATED, Altur brief); Share screened 100 % (ESTIMATE); Voice-fraud attempt
+    rate 0.040 % (ESTIMATE, industry 0.02–0.08 %); Attempts per month (DERIVED); Detection
+    recall at threshold (MEASURED from metrics.json); Attempts caught (DERIVED); Loss
+    per incident $1 850 (ESTIMATE, not Altur data); Exposure avoided (DERIVED); Inference
+    cost per call (ESTIMATE from docs/latency-report.md CPU-seconds); Compute cost
+    per month (DERIVED). Derived rows recomputed live from the inputs; the 30px hero
+    figure is Exposure avoided.
+
+    (b) VERIFY — vitest: derived values equal inputs multiplied; every row has a tag
+    chip; MEASURED rows read from metrics.json; latency bar turns RED above 3000.
+    Manual: this is the screen left open after the pitch.
+
+    (c) DOCS — product/console/README.md view 3 section listing every assumption and
+    its source.
+
+    '
+  scope:
+  - product/console/src/views/exec/
+  depends_on:
+  - T038
+  - T019
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T047
+  title: '[Paul] Tiger Data schema 001_init.sql: hypertable + continuous aggregate
+    with percentile_agg'
+  description: '(a) BUILD — product/deploy/sql/001_init.sql: table detection_events
+    (ts timestamptz, request_id text, is_synthetic bool, confidence real, p_synthetic
+    real, latency_ms int, decode_ms int, vad_ms int, features_ms int, inference_ms
+    int, semantic_ms int null, semantic_available bool, acoustic_available bool, model_version
+    text, outcome text, duration_s real) with `SELECT create_hypertable(''detection_events'',''ts'')`;
+    continuous aggregate detection_stats_1m (time_bucket 1 min, count, count filter
+    is_synthetic, percentile_agg(latency_ms) as latency_pct, avg confidence) with
+    a refresh policy; helper view detection_stats_1m_readable using approx_percentile(0.5/0.95/0.99,
+    latency_pct). No audio, no transcripts, no PII columns by construction. product/deploy/sql/README.md
+    with how to run it in the Tiger Data SQL editor (service concorde-events, project
+    cc2f1ioxl1) and how to destroy the service after the hackathon.
+
+    (b) VERIFY — Run it in the Tiger SQL editor: `\d+ detection_events` shows the
+    hypertable, an INSERT of 3 rows then `CALL refresh_continuous_aggregate(...)`
+    and SELECT from the readable view returns percentiles. Paste outputs into product/deploy/sql/README.md.
+    Connection string stays in TIGERDATA_URL only.
+
+    (c) DOCS — product/deploy/sql/README.md as above; docs/tigerdata.md stub with
+    the schema table for the README.
+
+    '
+  scope:
+  - product/deploy/sql/
+  - docs/tigerdata.md
+  depends_on:
+  - T022
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T048
+  title: '[Paul] Non-blocking Tiger Data event writer (sqlx, bounded channel, drop-on-backpressure)'
+  description: '(a) BUILD — product/api/src/storage/: `EventWriter::spawn(TIGERDATA_URL)`
+    creating a sqlx PgPool lazily (connect timeout 3 s, sslmode=require), a bounded
+    mpsc (1024) fed by pipeline.rs with a `try_send` that DROPS and counts on backpressure
+    — /detect never awaits storage; a background task batching inserts into detection_events
+    (every 500 ms or 50 rows); on any error: log once per minute, mark DepStatus tigerdata=degraded,
+    keep serving. Disabled cleanly when TIGERDATA_URL is unset (DepStatus disabled).
+
+    (b) VERIFY — Tests: with an unreachable URL, 100 /detect calls complete within
+    their normal latency and /health shows tigerdata degraded; with a local Postgres
+    in CI (or a docker service) 10 events land in the table; channel full → events
+    dropped, counter increments, no await. Manual: rows visible in Tiger after a replay
+    of 20 val clips.
+
+    (c) DOCS — product/api/README.md storage section (the "storage is observability,
+    not a dependency" rule, §7.2).
+
+    '
+  scope:
+  - product/api/src/storage/
+  - product/api/src/pipeline.rs
+  depends_on:
+  - T047
+  - T045
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T049
+  title: '[Paul] GET /history from continuous aggregates + val replay → historical
+    chart data (FR-015)'
+  description: '(a) BUILD — product/api/src/routes/history.rs: GET /history?window=24h&bucket=1m
+    reading detection_stats_1m_readable (count, synthetic count, p50/p95/p99 latency,
+    avg confidence per bucket); returns [] with degraded:true when storage is disabled/degraded
+    (never an error). product/deploy/replay_val.sh already exists (T038) — add a `--label`
+    mode note so a replay populates the table for the exec view''s historical strip;
+    document in docs/tigerdata.md.
+
+    (b) VERIFY — Test with the CI Postgres: after inserting 3 buckets the route returns
+    3 rows with percentiles; with storage disabled returns {"degraded":true,"buckets":[]}.
+    Manual: after a val replay the console exec view (if it reads /history) or a curl
+    shows real buckets.
+
+    (c) DOCS — product/api/README.md routes table; docs/tigerdata.md final section.
+
+    '
+  scope:
+  - product/api/src/routes/history.rs
+  - docs/tigerdata.md
+  depends_on:
+  - T048
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T050
+  title: '[Néstor] Red-team call assembler + ElevenLabs synthetic-caller clips (unseen
+    engine)'
+  description: '(a) BUILD — product/eval/redteam/assemble_call.py: builds a stereo
+    8 kHz 16-bit call WAV from an agent script (product/eval/redteam/script_agent_es.json:
+    ~10 agent turns following the dataset''s customer-service flow, including a repeat-back
+    request, a question about a non-existent item, one deliberate interruption and
+    one 3 s silence) and a set of caller utterance WAVs, placing caller responses
+    after each agent turn with a configurable latency policy (constant 0.9 s ± 0.05
+    for the synthetic case) and resampling everything to 8 kHz; agent voice = one
+    ElevenLabs voice, caller = a different ElevenLabs voice (Text to Speech; API key
+    from ELEVENLABS_API_KEY with the already-decided scope: TTS, Speech to Speech,
+    Voices Read, Models Access, User Access — do not request other permissions). product/eval/redteam/gen_synthetic.py
+    generates 5 synthetic-caller calls with different voices/latency policies into
+    product/eval/redteam/out/ (gitignored *.wav) and copies clip_synth_unseen_01.wav
+    to product/console/public/demo/. NO dataset audio anywhere in product/eval/.
+
+    (b) VERIFY — Each generated WAV decodes as stereo/8 kHz/16-bit; `vad-dump` finds
+    >= 8 caller turns; posting the 5 clips to the public /detect returns a verdict
+    each — record the verdicts in product/eval/redteam/REPORT.md (they are expected
+    to lean synthetic; if not, that is a finding, not a failure of this task).
+
+    (c) DOCS — product/eval/redteam/README.md: how clips are made, that none contain
+    dataset audio, and the ElevenLabs scope used.
+
+    '
+  scope:
+  - product/eval/redteam/assemble_call.py
+  - product/eval/redteam/gen_synthetic.py
+  - product/eval/redteam/script_agent_es.json
+  - product/eval/redteam/README.md
+  - product/eval/redteam/requirements.txt
+  depends_on:
+  - T025
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T051
+  title: '[Néstor] Human red-team clips (in-house recordings) + robustness report
+    + Speech-to-Speech probe'
+  description: '(a) BUILD — product/eval/redteam/record_human.md: protocol to record
+    a teammate answering the same agent script (agent audio played in one ear, caller
+    mic recorded, consent noted, invented personal data only), then assemble with
+    assemble_call.py using the REAL recorded timings (no latency policy). Produce
+    3 human calls, copy clip_human_01.wav to product/console/public/demo/. Score every
+    red-team clip (synthetic from T050 and human) through the public /analyze with
+    the local semantic layer enabled and record probe_detected, answer_type and semantic_available
+    per clip — this checks the probe detector and ASR on audio the templates never
+    saw. Optional probe: run one human recording through ElevenLabs Speech to Speech
+    (voice changed, prosody kept) and score it — document what the system says and
+    why that is the expected behaviour of a behavioral detector. product/eval/redteam/REPORT.md:
+    table of every red-team clip (source, engine, expected label, /detect verdict,
+    confidence, semantic fields) = the robustness evidence for §14.
+
+    (b) VERIFY — The two demo clips in product/console/public/demo/ play in the console
+    demo zone against the public deployment and produce the expected verdicts (or
+    the report explains why not). REPORT.md complete.
+
+    (c) DOCS — product/eval/redteam/REPORT.md; docs/robustness.md summary for the
+    README.
+
+    '
+  scope:
+  - product/eval/redteam/record_human.md
+  - product/eval/redteam/REPORT.md
+  - docs/robustness.md
+  depends_on:
+  - T050
+  - T038
+  - T045
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T052
+  title: '[Paul] Escalation protocol design doc (active defence: green / review /
+    transfer to human fraud agent)'
+  description: '(a) BUILD — docs/escalation-protocol.md: the three operational states
+    mapped to verdictOf (VERIFIED continue; REVIEW = confidence within ±0.20 of threshold
+    → agent asks an out-of-script verification question and re-scores; SYNTHETIC →
+    transfer to a human fraud agent with the /analyze rationale attached), the latency
+    and false-positive cost logic from §8.4/§10.2, and how the console''s REVIEW QUEUE
+    stat feeds it. Design + narrative only (COULD), no code.
+
+    (b) VERIFY — Reviewed by Paul; linked from README; fits on one screen for the
+    pitch.
+
+    (c) DOCS — docs/escalation-protocol.md itself.
+
+    '
+  scope:
+  - docs/escalation-protocol.md
+  depends_on:
+  - T022
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T053
+  title: '[Diego] Acoustic sub-signal as third vote (COULD, only if the core is green
+    before 05:00)'
+  description: '(a) BUILD — product/ml/acoustic/features.py: 8 cheap caller-channel
+    descriptors (spectral flatness mean/std, spectral centroid mean/std, F0 stability
+    via autocorrelation, long-term-average-spectrum tilt, silence-floor level, clipping
+    ratio) — deliberately low-dimensional to limit TTS-engine memorisation; train
+    a separate tiny LightGBM (same protocol as T017) and export product/artifacts/acoustic.onnx
+    + meta. product/api/src/acoustic/: mirror extractor + scoring, filling signals.acoustic
+    and degraded.acoustic_available=true in /analyze ONLY — the /detect verdict stays
+    behavioral-only unless Diego explicitly approves a fused threshold after seeing
+    the red-team results.
+
+    (b) VERIFY — Parity test for the 8 descriptors on 5 golden calls (1e-4); val AUC
+    of the acoustic model alone reported in product/ml/acoustic/REPORT.md together
+    with its score on the ElevenLabs clips (the honest generalisation check).
+
+    (c) DOCS — product/ml/README.md acoustic section; product/api/README.md signals
+    table.
+
+    '
+  scope:
+  - product/ml/acoustic/
+  - product/api/src/acoustic/
+  - product/artifacts/acoustic.onnx
+  - product/artifacts/acoustic.onnx.meta.json
+  depends_on:
+  - T045
+  - T051
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T055
+  title: '[All] Pre-judging checklist run: external verification, fault suite vs production,
+    rehearsal log'
+  description: '(a) BUILD — docs/pre-judging-checklist.md: the §18.4 checklist as
+    a table with owner, command, and a result column; execute it: four shapes vs production,
+    product/api/tests/fault_injection_remote.sh against the public URL, p95/p99 from
+    docs/latency-report.md re-measured, console three views < 20 s, demo clips on
+    the presenting laptop, three timed 15-minute walkthroughs (record times and who
+    speaks which part), runbook read aloud. Anything red becomes a follow-up task
+    via add_task.py or an explicit "known limitation" line for the README.
+
+    (b) VERIFY — Every row has a result and a timestamp; no unchecked MUST row.
+
+    (c) DOCS — docs/pre-judging-checklist.md; README "Known limitations" paragraph
+    source.
+
+    '
+  scope:
+  - docs/pre-judging-checklist.md
+  depends_on:
+  - T025
+  - T038
+  - T039
+  - T040
+  - T041
+  suggested_model: haiku
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
+- id: T056
+  title: '[All] Final judge-facing README.md at the repo root, in English (FR-016)
+    — the closing task'
+  description: '(a) BUILD — Rewrite README.md (REPO ROOT, the first thing a judge
+    opens) for Altur''s judges: the thesis (conversational dynamics over both channels,
+    why not a deep acoustic net, the turns.json-does-not-exist-at-inference finding
+    and the own VAD), architecture (text or SVG), the API contract as Altur published
+    it (canonical request JSON verbatim from hackmty26 commit 429adf7, the exact two-key
+    response, the fallback verdict, the note that the multi-shape parser is retained
+    as robustness — Q-01/A-01/A-06/A-07 of the spec are RESOLVED, do not present them
+    as open assumptions), the judge URL: https://HOSTNAME/detect (product/deploy/DOMAIN.md),
+    with http://PUBLIC_IP/detect documented as emergency fallback only, the fc-1 feature
+    catalog table (23 floats, F-21 is two values) with the F-05/F-12 hint operationalised,
+    measured results copied from product/ml/train/REPORT.md with BALANCED ACCURACY
+    first (Altur''s main metric) then AUC / Brier / EER / confusion matrix / error
+    by duration, the check_endpoint.py results on val from product/deploy/DEPLOY_LOG.md
+    (local and public), VAD agreement (product/ml/validation/vad_agreement/REPORT.md),
+    golden-vector parity (product/ml/validation/parity/REPORT.md), latency percentiles
+    on the real deployment (docs/latency-report.md) and load/soak results (docs/load-report.md),
+    the payload-limit derivation (16 MB from measured body sizes), how to run (server,
+    console, ml pipeline; reproduce every number from git SHA + seed + manifest hash
+    — NFR-009), the dataset-handling compliance statement (§13.4: no dataset in repo/artifacts,
+    no speaker identification), and an explicit "Deviation from ADR-012" subsection
+    stating that model selection used stratified K-fold by anon_id inside train rather
+    than speaker-grouped CV, because manifest.csv carries no speaker identifier and
+    the dataset terms ("Do not try to identify anyone") forbid inferring one, so val
+    — speaker-disjoint by construction — is the only speaker-disjoint measurement
+    and was used solely for final metrics and calibration. Then, ONLY for improvement
+    tasks whose status is done in orchestration/tasks.yaml at writing time (read it,
+    never edit it), add their sections linking docs/semantic-layer.md (fully local
+    semantic layer: no audio or text leaves the server), docs/asr-server-benchmark.md,
+    docs/robustness.md, docs/tigerdata.md, docs/escalation-protocol.md; list the rest
+    under "Not shipped" honestly. Known limitations from docs/pre-judging-checklist.md.
+
+    (b) VERIFY — Every number in the README matches its source file (product/scripts/check_readme_numbers.py
+    greps them); all links resolve; the three teammates review and sign off (names
+    + time at the bottom) before the 06:00 freeze.
+
+    (c) DOCS — This IS the doc.
+
+    '
+  scope:
+  - README.md
+  - product/scripts/check_readme_numbers.py
+  depends_on:
+  - T019
+  - T015
+  - T012
+  - T039
+  - T040
+  - T038
+  - T055
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
