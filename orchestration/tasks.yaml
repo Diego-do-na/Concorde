@@ -13,7 +13,7 @@ tasks:
   scope:
   - canary/c001.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: done
   owner: Diego_dona-claude
   branch: task/C-001
@@ -30,7 +30,7 @@ tasks:
   scope:
   - canary/c002.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: claimed
   owner: NC-EC-claude
   branch: task/C-002
@@ -49,7 +49,7 @@ tasks:
   scope:
   - canary/c003.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
@@ -66,7 +66,7 @@ tasks:
   scope:
   - canary/c004.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
@@ -83,7 +83,7 @@ tasks:
   scope:
   - canary/c005.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
@@ -100,7 +100,7 @@ tasks:
   scope:
   - canary/c006.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
@@ -120,7 +120,7 @@ tasks:
   depends_on:
   - C-001
   - C-002
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
@@ -139,7 +139,7 @@ tasks:
   scope:
   - canary/c003.txt
   depends_on: []
-  suggested_model: ''
+  suggested_model: haiku
   status: todo
   owner: null
   branch: null
