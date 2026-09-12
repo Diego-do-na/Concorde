@@ -319,11 +319,11 @@ tasks:
   depends_on:
   - T004
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T005
   claimed_at: '2026-09-12T23:04:31+00:00'
-  done_at: null
+  done_at: '2026-09-12T23:17:51+00:00'
 - id: T006
   title: '[Néstor] Typed API client, §8.2 fixtures, WebSocket-with-polling-fallback
     feed'
