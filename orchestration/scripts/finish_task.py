@@ -20,11 +20,16 @@ Flow:
        - CLEAN: push the work branch, merge it into main FOR REAL and
          push main (merge_branch_to_main — this is what actually gets the
          task's files into the tree everyone/every new worktree branches
-         from, not just a status flip), then atomically flip the task to
-         status=done/done_at=now in tasks.yaml (same retry pattern as
-         claim_task.py), notify Discord, and print any tasks that just
-         became unblocked (their depends_on are now all satisfied) — this
-         script never auto-claims them, it only surfaces them.
+         from, not just a status flip), then best-effort clean up the
+         now-redundant worktree and branch (cleanup_task_worktree —
+         `git worktree remove`, `git branch -d` [never -D: refuses rather
+         than forcing past an unmerged branch], `git push origin --delete`;
+         any failure here is only a warning, never fatal), then atomically
+         flip the task to status=done/done_at=now in tasks.yaml (same
+         retry pattern as claim_task.py), notify Discord, and print any
+         tasks that just became unblocked (their depends_on are now all
+         satisfied) — this script never auto-claims them, it only surfaces
+         them.
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from common import (
     CauceError,
     assert_main_checkout,
     branch_has_real_work,
+    cleanup_task_worktree,
     dependencies_satisfied,
     fail,
     find_task,
@@ -130,6 +136,13 @@ def main() -> None:
         # task) ever sees the result outside that one branch.
         print(f"Merging {branch} into main...")
         merge_branch_to_main(branch, commit_message=f"merge: {task_id} ({task['title']}) into main")
+
+        # Best-effort: the branch is already safely in main at this point,
+        # so its own worktree/branch are no longer needed. Any failure here
+        # is only a warning (printed by cleanup_task_worktree itself) --
+        # this must never stop the task from being marked done below.
+        print(f"Cleaning up {branch}'s worktree...")
+        cleanup_task_worktree(task_id, branch)
 
         def mutate(data: dict[str, Any]) -> dict[str, Any]:
             current = find_task(data, task_id)

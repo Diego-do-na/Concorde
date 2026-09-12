@@ -385,6 +385,50 @@ def merge_branch_to_main(branch: str, commit_message: str, max_attempts: int = 5
     raise CauceError("unreachable: merge_branch_to_main exhausted attempts")
 
 
+def cleanup_task_worktree(task_id: str, branch: str) -> None:
+    """Best-effort cleanup after a task's branch has already been merged
+    into main: remove its worktree, delete the local branch, delete the
+    remote branch. Call this AFTER merge_branch_to_main succeeds, never
+    before -- git refuses to delete a branch that's still checked out in
+    a worktree, so the worktree has to go first.
+
+    Every step is independent and never raises: a failure here is printed
+    as a warning and left for manual cleanup, but the caller's finish flow
+    (marking the task done) must still complete. Worktree/branch cleanup
+    is a courtesy, not a condition of the task being finished. In
+    particular the local branch delete uses `-d`, not `-D`: if git thinks
+    the branch isn't fully merged (it should be, right after a successful
+    merge -- but never force past its judgment here), this warns and
+    leaves the branch alone rather than discarding history.
+    """
+    worktree_path = REPO_ROOT.parent / f"task-{task_id}"
+    with local_repo_lock():
+        if worktree_path.exists():
+            remove = run_git(["worktree", "remove", str(worktree_path), "--force"], check=False)
+            if remove.returncode != 0:
+                print(
+                    f"  (warning: could not remove worktree {worktree_path}: "
+                    f"{remove.stderr.strip()} — left in place for manual cleanup)",
+                    file=sys.stderr,
+                )
+
+        branch_delete = run_git(["branch", "-d", branch], check=False)
+        if branch_delete.returncode != 0:
+            print(
+                f"  (warning: could not delete local branch {branch}: "
+                f"{branch_delete.stderr.strip()} — left in place for manual review)",
+                file=sys.stderr,
+            )
+
+        remote_delete = run_git(["push", "origin", "--delete", branch], check=False)
+        if remote_delete.returncode != 0:
+            print(
+                f"  (warning: could not delete remote branch {branch}: "
+                f"{remote_delete.stderr.strip()} — left in place)",
+                file=sys.stderr,
+            )
+
+
 # ---------------------------------------------------------------------------
 # tasks.yaml I/O
 # ---------------------------------------------------------------------------
