@@ -474,10 +474,10 @@ tasks:
   depends_on:
   - T001
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-cursor-agent
+  branch: task/T009
+  claimed_at: '2026-09-12T22:41:28+00:00'
   done_at: null
 - id: T010
   title: '[Paul] VAD stage A: framing, RMS energy, adaptive noise-floor threshold'
