@@ -6,6 +6,10 @@
 //! `on_frames`, `off_frames`, `min_speech_ms`, and `min_gap_ms` — their
 //! fields live here now so the contract is frozen in one struct from the
 //! start, but T011 owns tuning their defaults and consuming them.
+//!
+//! Validation: see `product/ml/validation/vad_agreement/REPORT.md` for the
+//! agreement measurements (FR-004) that justify the defaults below and the
+//! exact parameter-sweep used to arrive at them.
 
 /// Tunable parameters for both VAD stages.
 #[derive(Debug, Clone, Copy, PartialEq)]

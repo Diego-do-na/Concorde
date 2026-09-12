@@ -52,6 +52,26 @@ python eda/run_eda.py         # writes eda/REPORT.md, eda/*.png (gitignored)
 pytest eda/test_gates.py       # asserts the four gate numbers; skips without CONCORDE_DATASET_DIR
 ```
 
+## VAD agreement (FR-004)
+
+We validate the production VAD against the practice dataset's `turns/<id>.json`
+references by rasterising both the reference and the VAD output at 10 ms and
+measuring per-frame precision/recall/F1 plus turn-count ratios. The measurement
+and sweep code lives in `product/ml/validation/vad_agreement/`.
+
+To regenerate the report:
+
+```bash
+# run a grid sweep on a 60-call train subset (writes best_params.json)
+python product/ml/validation/vad_agreement/sweep.py --vad-bin ./target/release/vad-dump --out product/ml/validation/vad_agreement/best_params.json
+# re-evaluate on the full manifest and write REPORT.md
+python product/ml/validation/vad_agreement/run_agreement.py --vad-bin ./target/release/vad-dump
+```
+
+The gate (FR-004) requires per-frame F1 >= 0.85 for both channels and a
+turn-count ratio within ±20%. The validated report is at
+`product/ml/validation/vad_agreement/REPORT.md`.
+
 `run_eda.py` is deterministic: re-running against the same dataset produces
 a byte-identical `REPORT.md`.
 
