@@ -14,10 +14,10 @@ tasks:
   - canary/c001.txt
   depends_on: []
   suggested_model: haiku
-  status: claimed
-  owner: Diego_dona-claude
-  branch: task/C-001
-  claimed_at: '2026-09-12T15:56:24+00:00'
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
   done_at: null
 - id: C-002
   title: 'Canary: write c002.txt'
@@ -31,10 +31,10 @@ tasks:
   - canary/c002.txt
   depends_on: []
   suggested_model: haiku
-  status: claimed
-  owner: NC-EC-claude
-  branch: task/C-002
-  claimed_at: '2026-09-12T15:56:26+00:00'
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
   done_at: null
 - id: C-003
   title: 'Canary: write c003.txt'
@@ -50,10 +50,10 @@ tasks:
   - canary/c003.txt
   depends_on: []
   suggested_model: haiku
-  status: claimed
-  owner: Diego_dona
-  branch: task/C-003
-  claimed_at: '2026-09-12T16:14:04+00:00'
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
   done_at: null
 - id: C-004
   title: 'Canary: write c004.txt'
