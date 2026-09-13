@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { mmss } from '../../../theme/tokens';
 import './audio.css';
 
@@ -44,23 +44,34 @@ export default function AudioPlayer({ file, durationS, onTime, unavailableReason
 
   // One object URL per file, revoked when the file changes or we unmount —
   // otherwise every demo run leaks a blob URL for the session's lifetime.
-  // Guarded: a runtime without object URLs (jsdom, some embedded webviews)
-  // must land in the explicit error state, not throw during render.
-  const canObjectUrl = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
-  const url = useMemo(() => (file && canObjectUrl ? URL.createObjectURL(file) : null), [file, canObjectUrl]);
+  // The object URL is created AND revoked inside one effect, never memoised:
+  // a memoised URL revoked by an effect cleanup leaves the media element
+  // pointing at a dead blob (React StrictMode's mount→cleanup→mount in dev
+  // reproduces this deterministically — the player sat on "loading…"
+  // forever). Guarded so a runtime without object URLs (jsdom, some
+  // embedded webviews) lands in the explicit error state, not a throw.
+  const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {
-    return () => {
-      if (url && typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(url);
-    };
-  }, [url]);
-
-  useEffect(() => {
-    setState(file ? (url ? 'loading' : 'error') : 'unavailable');
+    const canObjectUrl = typeof URL !== 'undefined' && typeof URL.createObjectURL === 'function';
+    if (!file || !canObjectUrl) {
+      setUrl(null);
+      setState(file ? 'error' : 'unavailable');
+      setT(0);
+      setDur(durationS ?? 0);
+      onTime?.(null);
+      return;
+    }
+    const created = URL.createObjectURL(file);
+    setUrl(created);
+    setState('loading');
     setT(0);
     setDur(durationS ?? 0);
     onTime?.(null);
+    return () => {
+      if (typeof URL.revokeObjectURL === 'function') URL.revokeObjectURL(created);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [file, url]);
+  }, [file]);
 
   const push = (value: number) => {
     setT(value);
