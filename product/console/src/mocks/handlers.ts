@@ -38,5 +38,29 @@ export const handlers = [
     const resp = { ...sample, id, waveform: sample.waveform };
     return res(ctx.status(200), ctx.json(resp));
   }),
+  rest.post('/detect', async (req, res, ctx) => {
+    // Accept multipart or json; return a two-key verdict
+    const contentType = req.headers.get('content-type') || '';
+    let is_synthetic = false;
+    let confidence = Math.random() * 0.4 + 0.3; // 0.3..0.7
+    if (contentType.includes('application/json')) {
+      try {
+        const body = await req.json();
+        if (body && typeof body.audio_base64 === 'string') {
+          // deterministic-ish
+          confidence = 0.6;
+        }
+      } catch {}
+    } else {
+      try {
+        const form = await req.formData();
+        const file = form.get('file');
+        if (file) confidence = 0.65;
+      } catch {}
+    }
+    // Synthesize boolean by threshold
+    is_synthetic = confidence > 0.5;
+    return res(ctx.status(200), ctx.json({ is_synthetic, confidence }));
+  }),
 ];
 

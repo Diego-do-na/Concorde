@@ -119,6 +119,16 @@ Rule: exactly three semantic states (VERIFIED, REVIEW, SYNTHETIC); never rely on
 - `/exec` → Exec
 - `/demo` → Demo
 
+Demo view
+---------
+
+Drop two demo WAVs into `product/console/public/demo/`:
+
+- `clip_human_01.wav` — human recorded in-house
+- `clip_synth_unseen_01.wav` — synthetic caller from unseen engine
+
+The demo view (`/demo`) provides an upload/drop zone and two pre-wired robustness clips. Set `VITE_USE_MOCKS=1` to run the pre-wired clips against the mocked `/detect` and `/analyze` endpoints.
+
 View: Detail — Factors
 
 - The feature-note map lives at `product/console/src/views/detail/factors/featureNotes.ts` and maps the 23 frozen F-ids (`F-01` … `F-23`) to the canonical feature keys. The canonical keys MUST match `product/artifacts/feature_contract_fc-1.json` (contract `fc-1`). Keep the one-line notes concise; tests assert parity.
