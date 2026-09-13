@@ -26,6 +26,13 @@ getconcorde.tech {
 	reverse_proxy /version 127.0.0.1:8080
 	reverse_proxy /feed/* 127.0.0.1:8080
 	reverse_proxy /ws 127.0.0.1:8080
+	# Static console (React SPA) served from /opt/concorde/console
+	# API routes above take precedence (exact matches like /detect, /analyze)
+	handle_path /* {
+		root * /opt/concorde/console
+		try_files {path} /index.html
+		file_server
+	}
 }
 
 # ---- HTTP-only fallback (emergency only) ----

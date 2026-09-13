@@ -256,6 +256,27 @@ openssl s_client -connect getconcorde.tech:443
 4. **T045** — Measure and tune ASR (whisper.cpp) on the server hardware
 5. **T057** — Choose whisper.cpp model (tiny vs. base) based on T045 benchmarks
 
+## Console (React) — deploy & verify
+
+When the console (React SPA) is ready, deploy it to `/opt/concorde/console` and verify end-to-end:
+
+Deploy:
+```bash
+./product/deploy/deploy-console.sh 100.93.147.55 2222 root
+```
+
+Feed the live table by replaying validation clips:
+```bash
+./product/deploy/replay_val.sh /path/to/val_wavs getconcorde.tech 20
+```
+
+Verification:
+- Visit https://getconcorde.tech/ — the Live feed should show the replayed calls.
+- Click a call → Detail view shows waveform, markers, trace, and /analyze factors.
+- Upload a demo clip via the UI and confirm Exec / Detail show the two-key body and placeholder stats.
+- All three views reachable within ~20s from landing on a modest laptop.
+
+
 ---
 
 **Created**: 2026-09-12  

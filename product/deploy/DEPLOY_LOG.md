@@ -307,6 +307,28 @@ The `/detect` endpoint is reachable from the public internet over HTTPS, returns
 
 ---
 
+## T004 — Console deploy & E2E verification (Néstor + Paul)
+
+**Date**: 2026-09-12  
+**Deployed by**: Néstor, Paul  
+**Summary**:
+- Built the React console (`product/console`) with `VITE_API_BASE='/'`, copied `dist/` to `/opt/concorde/console`, and reloaded Caddy.
+- Replayed 20 val clips from a laptop using `product/deploy/replay_val.sh`, each POSTed to `https://getconcorde.tech/detect`.
+
+### Verification (Console)
+- Landing page loads and shows Live feed within ~12s on a 13" laptop (1× zoom).
+- Clicking an entry opens Detail: waveform, markers, trace and /analyze factors rendered from live API.
+- Demo upload accepted and shows two-key body in Exec/Detail views.
+- All three views reachable from landing page in < 20 s.
+
+### Commands used
+```bash
+./product/deploy/deploy-console.sh 100.93.147.55 2222 root
+./product/deploy/replay_val.sh /path/to/val_wavs getconcorde.tech 20
+```
+
+**Notes**: Caddy's static handler uses SPA fallback (`try_files {path} /index.html`) so client-side routing works. Entry recorded per T004 requirements.
+
 # T025 — Real model deploy & latency measurement
 
 **Task**: T025 — Deploy the real model (T021 export) and measure end-to-end latency.
