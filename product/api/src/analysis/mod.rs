@@ -138,11 +138,16 @@ pub fn build(state: &SharedState, analysis: &Analysis) -> Result<AnalyzeResponse
         threshold: effective_threshold(&meta),
     };
 
-    let signals = Signals { behavioral: analysis.verdict.p_synthetic, semantic: None, acoustic: None };
+    let signals = Signals {
+        behavioral: analysis.semantic.p_behavioral,
+        semantic: if analysis.semantic.available { Some(analysis.semantic.p_final) } else { None },
+        acoustic: None,
+    };
 
-    // Hardcoded until T038 (semantic) / T045 (acoustic) land — never
-    // imputed as if real (§7.2).
-    let degraded = Degraded { semantic_available: false, acoustic_available: false };
+    let degraded = Degraded {
+        semantic_available: analysis.semantic.available,
+        acoustic_available: false,
+    };
 
     let timeline =
         timeline::compute(shared_model, &analysis.turns, analysis.duration_s, analysis.verdict.confidence)?;
@@ -160,7 +165,7 @@ pub fn build(state: &SharedState, analysis: &Analysis) -> Result<AnalyzeResponse
         decode: analysis.timings_ms.decode,
         vad: analysis.timings_ms.vad,
         features: analysis.timings_ms.features,
-        semantic: None,
+        semantic: analysis.semantic.asr_ms,
         inference: analysis.timings_ms.inference,
         total: analysis.timings_ms.total,
     };

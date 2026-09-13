@@ -67,10 +67,28 @@ Environment variables (defaults and rationale)
 - `CONCORDE_MAX_BODY_BYTES` — default `16777216` (16 MB). Rationale: judge posts whole WAV as base64 inside JSON; measured medians ~6.2MB and max ~11.7MB; 16 MB provides margin.
 - `CONCORDE_HANDLER_TIMEOUT_MS` — default `20000` (20s). Rationale: judge per-call timeout is 30s including network; handler budget should be smaller.
 - `CONCORDE_STRICT` — if set, surface parsing errors in dev.
-- `CONCORDE_SEMANTIC_ENABLED` — enable semantic layer.
-- `CONCORDE_SEMANTIC_TIMEOUT_MS` — default `1500` ms.
-- `CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS` — default `8000` ms.
-- `CONCORDE_WHISPER_MODEL_PATH`, `CONCORDE_WHISPER_THREADS`, `CONCORDE_ASR_MAX_CONCURRENT`, `CONCORDE_SEMANTIC_FUSION_PATH`, `TIGERDATA_URL` — other optional knobs.
+- `CONCORDE_SEMANTIC_ENABLED` — enable semantic layer (default `false`).
+- `CONCORDE_SEMANTIC_TIMEOUT_MS` — default `1500` ms (ASR timeout budget for `/detect`).
+- `CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS` — default `8000` ms (ASR timeout budget for `/analyze`).
+- `CONCORDE_WHISPER_MODEL_PATH` — path to ggml whisper model (e.g. `/opt/concorde/artifacts/ggml-tiny.bin`).
+- `CONCORDE_WHISPER_THREADS` — default `4` (threads for whisper.cpp execution).
+- `CONCORDE_ASR_MAX_CONCURRENT` — default `2` (max concurrent ASR calls via Tokio Semaphore; skips in <1ms if busy).
+- `CONCORDE_SEMANTIC_FUSION_PATH` — path to fusion JSON artifact (default `artifacts/semantic_fusion.json`).
+- `CONCORDE_PROBE_TEMPLATES_PATH` — path to probe template bank (default `artifacts/probe_templates.json`).
+- `TIGERDATA_URL` — other optional knobs.
+
+Semantic Layer & Local Fusion (T045, ADR-008, NFR-001, NFR-010)
+- **Architecture**: Inline DTW probe detector (`probe.rs`) -> ASR on the caller's answer turn (`asr.rs` via `whisper-rs`) -> rule-based `answer_type` & `invention_score` (`rules.rs`) -> logit-space fusion (`fusion.rs`).
+- **Fusion Rule**:
+  `logit(p_final) = logit(p_behavioral) + w * (invention_score - 0.5)`
+  Clamped so `|p_final - p_behavioral| <= max_delta_p` (shipped parameters: `w = -0.8`, `max_delta_p = 0.15`).
+- **Explicit Degradation & Fallback**: When semantic is unavailable for any reason (disabled, no probe turn, no answer turn, semaphore busy, or ASR timeout), `p_final = p_behavioral` exactly (deterministic behavioral-only verdict, NFR-010) with `semantic_available = false` and `reason` in the structured log line.
+- **Privacy Contract**: 100% local execution using embedded `whisper.cpp` (`whisper-rs`). Zero audio or transcript text ever leaves the process or server, and transcript text is never logged or stored.
+- **Build Requirements**:
+  - `cmake` and `libclang` installed on the build host (for `whisper-rs-sys`).
+  - Model setup script: `./product/deploy/get_whisper_model.sh [target_dir]` downloads `ggml-tiny.bin` into `/opt/concorde/artifacts/` (T057 approved, sha256 pinned: `be07e048e1e599ad46341c8d2a135645097a538221678b7acdd1b1919c6e1b21`).
+- **Parity Verification Command**:
+  - `cargo test --test semantic_parity` (from `product/api`) verifies 100% parity between Rust `rules.rs` and Python `rules.py` rules/scores, probe detector DTW, and `semantic-dump` CLI binary output.
 #
 The `/detect` pipeline (T022)
 - `pipeline::analyze_bytes(state, bytes) -> Result<Analysis>` is the one place decode, VAD, features, and inference are wired together; `routes::detect` calls it and reads only `Analysis::verdict`, still inside `http::failsafe::run_failsafe` so any `Err` here (undecodable WAV, no model loaded, an ONNX runtime error) becomes the ADR-006 fallback verdict at HTTP 200, never this function's own concern.

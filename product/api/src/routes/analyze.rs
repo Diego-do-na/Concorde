@@ -54,7 +54,9 @@ pub async fn analyze(State(state): State<SharedState>, headers: HeaderMap, body:
 /// downstream.
 async fn process(state: SharedState, headers: HeaderMap, body: Bytes) -> Result<serde_json::Value, String> {
     let parsed = parse::extract_audio(&headers, body).await.map_err(|e| e.to_string())?;
-    let analysis = pipeline::analyze_bytes(&state, &parsed.wav).map_err(|e| e.to_string())?;
+    let analysis = pipeline::analyze_bytes_with_timeout(&state, &parsed.wav, state.config.analyze_semantic_timeout_ms)
+        .await
+        .map_err(|e| e.to_string())?;
     // Publish to feed for dashboard real-time updates (T027)
     let _ = state.feed.push(parsed.call_id.clone(), &analysis);
     let payload = analysis::build(&state, &analysis).map_err(|e| e.to_string())?;

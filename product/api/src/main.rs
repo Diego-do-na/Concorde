@@ -32,7 +32,14 @@ async fn main() -> anyhow::Result<()> {
         None
     };
 
-    let state = Arc::new(AppState::new(config, model));
+    // Boot the semantic layer (T045) eagerly, alongside the ONNX model:
+    // one WhisperContext for the process lifetime, never per-request.
+    // Never aborts startup -- a disabled/failed semantic layer still
+    // serves the MUST-priority behavioral `/detect` path (AGENTS.md
+    // rule 3); `SemanticEngine::boot` logs loudly on failure instead.
+    let semantic = concorde_api::semantic::SemanticEngine::boot(&config);
+
+    let state = Arc::new(AppState::new_with_semantic(config, model, semantic));
 
     let bind = state.config.bind.parse::<SocketAddr>().unwrap_or_else(|_| {
         "127.0.0.1:8080".parse().expect("static default valid")
