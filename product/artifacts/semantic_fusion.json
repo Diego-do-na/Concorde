@@ -1,0 +1,16 @@
+{
+  "auc_val_behavioral": 0.9435612082670906,
+  "auc_val_fused": 0.9419713831478538,
+  "ba_val_behavioral": 0.8465818759936408,
+  "ba_val_fused": 0.8600953895071541,
+  "brier_val_behavioral": 0.0935511177882496,
+  "brier_val_fused": 0.094210931571008,
+  "fitted_on": "train_oof",
+  "flip_fraction_val": 0.014084507042253521,
+  "honest_note": "fused val BA (0.8601) > behavioral-only val BA (0.8466)",
+  "max_delta_p": 0.15,
+  "version": "semantic-fusion-v1",
+  "w": -0.8,
+  "w_selected_on_train_oof": -0.8,
+  "whisper_model": "base"
+}
