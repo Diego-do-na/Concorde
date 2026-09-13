@@ -18,9 +18,9 @@ if [ ! -d "$CONSOLE_DIR" ]; then
   exit 1
 fi
 
-echo "Building console (VITE_API_BASE set to same-origin '/')" 
+echo "Building console (VITE_API_BASE empty = same-origin; '/' would yield scheme-relative //health URLs)" 
 cd "$CONSOLE_DIR"
-export VITE_API_BASE="/"
+export VITE_API_BASE=""
 npm ci
 npm run build
 
