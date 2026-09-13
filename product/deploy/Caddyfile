@@ -18,18 +18,16 @@ getconcorde.tech {
 		}
 	}
 
-	# API endpoints
-	reverse_proxy /detect 127.0.0.1:8080
-	reverse_proxy /analyze 127.0.0.1:8080
-	reverse_proxy /health 127.0.0.1:8080
-	reverse_proxy /metrics 127.0.0.1:8080
-	reverse_proxy /version 127.0.0.1:8080
-	reverse_proxy /feed/* 127.0.0.1:8080
-	reverse_proxy /ws 127.0.0.1:8080
-	reverse_proxy /history 127.0.0.1:8080
+	# API endpoints. `handle` blocks are evaluated in order and are mutually
+	# exclusive, and Caddy orders bare `reverse_proxy` directives AFTER
+	# `handle_path`, so the API must live inside its own `handle` or the SPA
+	# catch-all below swallows /detect and /health (this happened once).
+	@api path /detect /analyze /health /metrics /version /history /ws /feed/*
+	handle @api {
+		reverse_proxy 127.0.0.1:8080
+	}
 	# Static console (React SPA) served from /opt/concorde/console
-	# API routes above take precedence (exact matches like /detect, /analyze)
-	handle_path /* {
+	handle {
 		root * /opt/concorde/console
 		try_files {path} /index.html
 		file_server
