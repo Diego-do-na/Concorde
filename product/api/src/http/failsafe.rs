@@ -148,6 +148,9 @@ fn incident_response(
         )
             .into_response()
     } else {
+        // Record fallback in global metrics so /metrics reflects incidents
+        // even when the handler didn't reach the normal success path.
+        crate::metrics::GLOBAL_METRICS.record("detect", "fallback", 0.0, true);
         (StatusCode::OK, Json(fallback())).into_response()
     }
 }

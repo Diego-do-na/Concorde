@@ -41,6 +41,8 @@ pub async fn detect(
             .map_err(|e| DetectFailure::new(e.to_string(), call_id.clone()))?;
 
         log_detect(&request_id, call_id.as_deref(), byte_size, &analysis);
+        // Record success metrics for this detect call.
+        state.metrics.record("detect", "ok", analysis.timings_ms.total, false);
 
         Ok(DetectResponse::new(analysis.verdict.is_synthetic, analysis.verdict.confidence))
     })

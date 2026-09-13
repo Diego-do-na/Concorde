@@ -1,5 +1,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, SystemTime};
+use std::collections::HashMap;
+use crate::metrics::DepStatus;
 
 use crate::config::Config;
 use crate::inference::model::Model;
@@ -17,6 +19,12 @@ pub struct AppState {
     pub started_at: SystemTime,
     pub git_sha: String,
     pub model: Option<SharedModel>,
+    /// Dependency status registry: other modules update these statuses;
+    /// `/health` reads them without performing network I/O.
+    pub deps: Arc<Mutex<HashMap<String, DepStatus>>>,
+    /// Metrics registry (process-wide); initialized once and used by
+    /// pipeline/routes to record and expose metrics.
+    pub metrics: crate::metrics::Metrics,
 }
 
 impl AppState {
@@ -31,6 +39,8 @@ impl AppState {
             started_at: SystemTime::now(),
             git_sha,
             model,
+            deps: Arc::new(Mutex::new(HashMap::new())),
+            metrics: crate::metrics::GLOBAL_METRICS.clone(),
         }
     }
 
