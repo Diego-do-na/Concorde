@@ -928,10 +928,10 @@ tasks:
   - T018
   - T020
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T021
+  claimed_at: '2026-09-13T00:24:36+00:00'
   done_at: null
 - id: T022
   title: '[Paul] /detect end-to-end: parser → decode → VAD → features → ONNX → verdict,
