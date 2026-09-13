@@ -71,3 +71,8 @@ If SSH uses a non-standard port, add `--ssh-port <port>` to the `deploy.sh` invo
 - The `--apply` path uses SSH as root to copy files and restart the service. Ensure the target host accepts the same SSH key or has passwordless root SSH via the provisioned key.
 - During the judged window, changing code or model artifacts is not allowed — restores and restarts only.
 
+## Verification rule after any Caddyfile change (added 2026-09-13)
+- `caddy validate --config /etc/caddy/Caddyfile` before `systemctl reload caddy`.
+- After the reload, verify BODIES, not status codes: `curl -s https://getconcorde.tech/health | python3 -m json.tool` must print JSON with `git_sha`, and `python3 scripts/check_endpoint.py --url https://getconcorde.tech/detect --split val --n 5` must report `errors: 0`.
+- Why: the SPA catch-all (`handle { file_server }`) returns index.html with HTTP 200 for any unmatched path. On 2026-09-13 a Caddyfile that placed bare `reverse_proxy` directives after `handle_path /*` swallowed `/detect` and `/health` for ~4 minutes; every response was a 200 that the judge's client counts as a wrong answer. API routes must stay inside the `handle @api { ... }` block that precedes the SPA handle.
+- Rollback: `cp /etc/caddy/Caddyfile.bak-<ts> /etc/caddy/Caddyfile && systemctl reload caddy`.

@@ -162,6 +162,9 @@ Only improvement tasks marked `status: done` in `orchestration/tasks.yaml` are i
 - See `docs/pre-judging-checklist.md` for the judge-focused runbook and limitations recorded during the final checklist run (T055).
 - The semantic layer is **disabled** in the judged deployment (`CONCORDE_SEMANTIC_ENABLED=false`): the fitted fusion weight (`w = -0.8`, base model) never received the bootstrap stability check that was set as a condition, so the served verdict is behavioral-only and deterministic (NFR-010). `/analyze` reports `semantic: null`, `semantic_available: false` — a degraded signal, never a fabricated zero.
 - The whisper.cpp source commit used for the offline transcripts is not recorded; the ggml model files are pinned by sha256 and the serving side is pinned through `whisper-rs` in `Cargo.lock`. A rebuild of the offline CLI on another machine could produce slightly different ground truth (NFR-009 risk, offline only).
+- Fallback verdicts (invalid audio → `{"is_synthetic": false, "confidence": 0.5}`) are correct on the API but are not published to the console feed, so the monitor does not show them as degraded calls.
+- The 30-minute soak test was not run; only the 8-way concurrency test (PASS) — see `docs/load-report.md`.
+- `/feed/analysis/:id` retains the last 50 analyses; the detail view of older calls shows "Analysis not retained". Top factors, rationale and the confidence trace come only from `POST /analyze` (Demo view).
 - Red-team clips were assembled from a 10-turn script without the agent's deliberate silences, so the two dominant features (`silence_break_delay_*`) are degenerate on them and the synthetic clips land close to the threshold; see `docs/robustness.md`.
 
 ## Verification & sign-off (pre-freeze)

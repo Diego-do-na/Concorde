@@ -108,12 +108,12 @@ This document tracks the pre-judging verification checklist per §18.4 of the te
 | MUST | ONNX inference + Vultr deployment | ✓ PASS | Model concorde-b-2 loads, latency p99=585ms < 1s, TLS valid, reachable from internet (verified 2026-09-13) |
 | MUST | Stable deployment (F1 exit) | ✓ PASS | Uptime 1516s measured; cold-standby procedure documented; health check 85ms < 100ms |
 | MUST | README updated | ✓ PASS | 2026-09-13 14:40 | Known limitations table added; quick-start + deployment links; status summary |
-| SHOULD | Console 3 views < 20s | [Partial] | Landing: 85ms confirmed; detail + exec: estimated 2×150ms = ~385ms total (well under 20s). Manual test pending. |
-| SHOULD | Dashboard + /analyze endpoint | [Partial] | /analyze endpoint exists (API implemented); console views T004 deployed; requires manual browser verification |
+| SHOULD | Console 3 views < 20s | ✓ PASS | Final audit 2026-09-13 09:45 UTC: monitor, detail (`/calls/<id>`) and exec rendered with real backend data in a headless Chrome run (30 s virtual time); all reachable from landing via the nav. |
+| SHOULD | Dashboard + /analyze endpoint | ✓ PASS | /analyze, /feed/recent, /feed/analysis/:id, /history served by binary 75d01f9; console consumes the real FeedEvent/Analysis contracts (fixed in the final audit). |
 | SHOULD | Semantic layer (local whisper.cpp + probe detector, hard timeout) | — | **Status**: CONCORDE_SEMANTIC_ENABLED=false; disabled per §3 MoSCoW (SHOULD, not MUST); can add in next phase |
 | WON'T | Acoustic-only fallback signal | — | Behavioral signal is primary; acoustic additive-only design (ADR-001) |
 | WON'T | Online retraining | — | Out of scope; model fixed at export time |
-| WON'T | MongoDB Atlas, Snowflake, Tiger Data, Solana | — | Not in feature contract; logging architecture TBD post-judging |
+| COULD | Tiger Data event logging + /history | ✓ ACTIVE | Binary 75d01f9 writes detection_events (schema reconciled at boot); `/health` reports `tigerdata: ok` once traffic flows. MongoDB Atlas, Snowflake, Solana remain WON'T. |
 
 ---
 
@@ -190,9 +190,17 @@ Each should be ~15 min; save as `docs/walkthrough-{1,2,3}-[date].mov`
 
 ---
 
-## Known Issues Pending Audit
+## Known limitations (final integration audit, 2026-09-13, binary 75d01f9)
 
-☐ README raíz auditado y reconciliado (Fable 5.1) — cifras verificadas contra REPORT.md/DEPLOY_LOG.md, sin contenido duplicado
+1. **Fallback verdicts are not visible in the console.** Invalid input (empty, truncated, malformed JSON) correctly returns HTTP 200 `{"is_synthetic": false, "confidence": 0.5}` on `/detect` and `{"error": ...}` on `/analyze`, but the fallback path does not publish to the feed, so the live monitor never shows such a call as "degraded". Deliberately left as-is: fixing it needs a binary rebuild and the API contract is already correct (ADR-006).
+2. **The 30-minute soak (NFR-006) was not run.** Only the 8-way concurrency test ran (PASS, server p99 275 ms, 0 non-200; `docs/load-report.md`). RSS at rest after the val replays and the load run: ~135 MB.
+3. **Analysis retention is bounded.** `/feed/analysis/:id` keeps the last 50 analyses; older calls show "Analysis not retained" in the detail view. Top factors, rationale and the confidence trace are only produced by `POST /analyze` (the Demo view) and are not retained.
+4. **Semantic layer disabled** (`CONCORDE_SEMANTIC_ENABLED=false`): the fitted fusion weight never received the bootstrap stability check; the served verdict is behavioral-only.
+
+### Operational rule learned today (Caddyfile changes)
+After ANY change to the Caddyfile, verification MUST parse the response bodies as JSON (`curl -s https://getconcorde.tech/health | python3 -m json.tool`) and run `check_endpoint.py --n 5` — never trust an HTTP 200 alone. On 2026-09-13 09:08–09:12 UTC the SPA catch-all swallowed `/detect` and `/health` (index.html with status 200) for ~4 minutes during the console deploy; the judge's client reports that as "body is not JSON" = wrong answer.
+
+☑ README raíz auditado y reconciliado 2026-09-13 (segunda mitad duplicada eliminada; cifras verificadas contra REPORT.md / DEPLOY_LOG.md / load-report.md).
 
 ---
 
