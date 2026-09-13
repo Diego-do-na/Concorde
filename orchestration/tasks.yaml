@@ -2168,11 +2168,11 @@ tasks:
   - T040
   - T041
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T055
   claimed_at: '2026-09-13T02:29:35+00:00'
-  done_at: null
+  done_at: '2026-09-13T02:41:07+00:00'
 - id: T056
   title: '[All] Final judge-facing README.md at the repo root, in English (FR-016)
     — the closing task'
