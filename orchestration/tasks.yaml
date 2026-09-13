@@ -2312,8 +2312,8 @@ tasks:
   - T021
   - T025
   suggested_model: opus
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T059
   claimed_at: '2026-09-13T01:20:54+00:00'
-  done_at: null
+  done_at: '2026-09-13T02:27:00+00:00'
