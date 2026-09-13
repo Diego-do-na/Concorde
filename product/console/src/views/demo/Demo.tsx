@@ -2,6 +2,7 @@ import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { analyze, detect, Analysis } from '../../lib/api';
 import { toneFor } from '../../theme/tokens';
+import AudioPlayer from '../detail/audio/AudioPlayer';
 import './demo.css';
 
 /*
@@ -57,6 +58,9 @@ export default function Demo() {
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
   const [analyzeError, setAnalyzeError] = useState<string | null>(null);
   const [fileName, setFileName] = useState<string | null>(null);
+  // Kept in memory so the clip can be replayed here and in the detail view
+  // it hands over to — the service itself never retains audio (NFR-011).
+  const [audioFile, setAudioFile] = useState<File | null>(null);
   const [dragging, setDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const navigate = useNavigate();
@@ -66,6 +70,7 @@ export default function Demo() {
     setStatus('ANALYSING');
     setCallId(id);
     setFileName(file.name);
+    setAudioFile(file);
     setDetectBody(null);
     setAnalysis(null);
     setAnalyzeError(null);
@@ -236,6 +241,9 @@ export default function Demo() {
             </div>
           </div>
 
+          <div className="rail-section-head">Call audio</div>
+          <AudioPlayer file={audioFile} durationS={analysis?.meta?.duration_s} />
+
           <div className="rail-section-head">Response body</div>
           <pre className="response-body">{responseBody}</pre>
 
@@ -261,7 +269,7 @@ export default function Demo() {
               // retained `pipeline::Analysis`, which has no timeline, no top
               // factors and no rationale — so throwing this away and asking
               // the server again downgraded the very call we just explained.
-              navigate(`/calls/${encodeURIComponent(callId)}`, { state: { analysis } })
+              navigate(`/calls/${encodeURIComponent(callId)}`, { state: { analysis, audioFile } })
             }
             disabled={!analysis || !callId}
           >

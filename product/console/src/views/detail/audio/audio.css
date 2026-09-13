@@ -1,0 +1,81 @@
+/* Call audio player — same surface/line/ink tokens as the plot panel it sits under. */
+.audio-player {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 10px;
+  padding: 10px 12px;
+  background: var(--surface-panel-alt);
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink2);
+}
+
+.audio-toggle {
+  flex: 0 0 auto;
+  width: 34px;
+  height: 34px;
+  border-radius: 2px;
+  border: 1px solid var(--chip-border);
+  background: var(--surface-chip-bg);
+  color: var(--ink);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 120ms ease, border-color 120ms ease;
+}
+.audio-toggle:hover:not(:disabled) {
+  background: var(--surface-hover);
+  border-color: var(--playhead);
+}
+.audio-toggle:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.audio-player.is-playing .audio-toggle {
+  border-color: var(--playhead);
+}
+
+.audio-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.audio-timeline {
+  width: 100%;
+  accent-color: var(--playhead);
+  cursor: pointer;
+}
+
+.audio-time {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-feature-settings: var(--font-feature-settings);
+  color: var(--mono-1);
+}
+.audio-sep {
+  color: var(--dim-label);
+}
+.audio-hint {
+  margin-left: auto;
+  color: var(--dim-label);
+}
+
+.audio-unavailable {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.audio-player.is-error .audio-unavailable {
+  color: var(--review-color);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .audio-toggle {
+    transition: none;
+  }
+}

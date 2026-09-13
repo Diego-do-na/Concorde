@@ -13,6 +13,8 @@ import Legend from "./markers/Legend";
 import { MarkerOverlay } from "./markers";
 import { createTimeScale } from "./waveform/TimeScale";
 import { useElementWidth } from "./waveform/useElementWidth";
+import { interpolateConfidence } from "./waveform/confidence";
+import AudioPlayer from "./audio/AudioPlayer";
 import "./detail.css";
 
 type Props = { feed?: FeedLike };
@@ -45,7 +47,13 @@ export default function DetailView({ feed }: Props) {
   // wins — but only for the id it actually describes, so a stale entry from
   // the history stack cannot bleed onto a different call.
   const location = useLocation();
-  const handedOver = (location.state as { analysis?: Analysis } | null)?.analysis ?? null;
+  const navState = location.state as { analysis?: Analysis; audioFile?: File | Blob } | null;
+  const handedOver = navState?.analysis ?? null;
+  // The only audio this view can ever play: the clip the demo route analysed
+  // in this browser session and handed over alongside its payload. The
+  // service never retains audio (NFR-011), so every other way into this view
+  // renders the player's explicit "not available" state.
+  const audioFile = handedOver && handedOver.id === id ? navState?.audioFile ?? null : null;
 
   const [items, setItems] = useState<Analysis[]>([]);
   const [analysis, setAnalysis] = useState<Analysis | null>(null);
@@ -192,6 +200,16 @@ export default function DetailView({ feed }: Props) {
               </DualChannelWaveform>
               <MarkerOverlay events={analysis.events as any} timeScale={scale as any} />
             </div>
+
+            {/* Playback drives the same scrub state the hover does, so the
+                confidence-trace playhead follows the audio. */}
+            <AudioPlayer
+              file={audioFile}
+              durationS={analysis.meta.duration_s}
+              onTime={(t) =>
+                setScrub(t == null ? null : { t, confidence: interpolateConfidence(analysis.timeline, t) })
+              }
+            />
 
             <div className="panel-head" style={{ paddingTop: 22 }}>
               <span>Top contributing factors · model feature importance (FR-009)</span>
