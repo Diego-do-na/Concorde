@@ -774,11 +774,11 @@ tasks:
   - T016
   - T012
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T017
   claimed_at: '2026-09-13T00:05:21+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:13:32+00:00'
 - id: T018
   title: '[Diego] Calibration (Platt) on val + threshold chosen on train for BALANCED
     ACCURACY'
