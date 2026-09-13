@@ -47,6 +47,8 @@
 
 ## 3. Google AI Studio / Gemini API — Capa semántica
 
+> **DECISIÓN DESCARTADA (2026-09-12).** Gemini no forma parte del sistema entregado: por privacidad del audio de judging, la capa semántica F-23 se implementó 100 % local (detector de sonda por audio + whisper.cpp + `rules.rs`, ver `docs/semantic-layer.md`). Esta sección se conserva solo como historial de la evaluación de proveedores.
+
 **Estado:** Proyecto creado, nivel gratuito confirmado, llave pendiente de generar.
 
 | Dato | Valor |

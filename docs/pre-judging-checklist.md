@@ -110,7 +110,7 @@ This document tracks the pre-judging verification checklist per §18.4 of the te
 | MUST | README updated | ✓ PASS | 2026-09-13 14:40 | Known limitations table added; quick-start + deployment links; status summary |
 | SHOULD | Console 3 views < 20s | [Partial] | Landing: 85ms confirmed; detail + exec: estimated 2×150ms = ~385ms total (well under 20s). Manual test pending. |
 | SHOULD | Dashboard + /analyze endpoint | [Partial] | /analyze endpoint exists (API implemented); console views T004 deployed; requires manual browser verification |
-| SHOULD | Semantic layer (Gemini + timeout) | — | **Status**: CONCORDE_SEMANTIC_ENABLED=false; disabled per §3 MoSCoW (SHOULD, not MUST); can add in next phase |
+| SHOULD | Semantic layer (local whisper.cpp + probe detector, hard timeout) | — | **Status**: CONCORDE_SEMANTIC_ENABLED=false; disabled per §3 MoSCoW (SHOULD, not MUST); can add in next phase |
 | WON'T | Acoustic-only fallback signal | — | Behavioral signal is primary; acoustic additive-only design (ADR-001) |
 | WON'T | Online retraining | — | Out of scope; model fixed at export time |
 | WON'T | MongoDB Atlas, Snowflake, Tiger Data, Solana | — | Not in feature contract; logging architecture TBD post-judging |

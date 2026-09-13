@@ -96,6 +96,10 @@ All numbers are copied from the canonical sources in this repo.
 - Training / validation report (`product/ml/train/REPORT.md`): shipped
   LightGBM `model_lgbm.txt` (git_sha `5d539a8f32752f2d6892b01742a89e4f108f54b8`, seed `20260912`), scored on `val` (n=71):
   - Balanced accuracy (val, shipped threshold): 0.8466
+    (offline evaluation of the booster recorded in REPORT.md; the live figure
+    below is 0.864 — the difference is consistent with the T059 re-export
+    chain, `concorde-b-1` → `concorde-b-2`, whose exact contribution was not
+    investigated further before the freeze)
   - ROC-AUC (val): 0.9436
   - Brier (after calibration): 0.0936
   - EER (val): 0.1129
@@ -121,7 +125,7 @@ All numbers are copied from the canonical sources in this repo.
   - Max abs error per feature all ≪ 1e-6 (machine-epsilon noise only)
 - Latency percentiles (real deployment): `docs/latency-report.md`
   - server-side p50=475 ms, p95=568 ms, p99=585 ms
-- Load / soak: `docs/load-report.md` — NOT YET RUN (T040 blocked on real model; TBD)
+- Load / soak: `docs/load-report.md` — 8-way concurrency run against the final deployment (see the report for p95/p99 under load)
 
 ## Payload size & limits
 - Default server limit: `CONCORDE_MAX_BODY_BYTES = 16_777_216` (16 MB) (`product/api/README.md`).
@@ -148,16 +152,17 @@ All numbers are copied from the canonical sources in this repo.
 ## Improvement docs (shipped)
 Only improvement tasks marked `status: done` in `orchestration/tasks.yaml` are included here.
 - ASR server benchmark (T057): `docs/asr-server-benchmark.md` — server-side whisper.cpp measurements and decision rule (model choice, vCPU).
-- TigerData schema & SQL (T047): `docs/tigerdata.md` — schema, hypertable, continuous-aggregate, and how to load events.
+- Local semantic layer, F-23 (T042–T045): `docs/semantic-layer.md` — probe-turn audio detector + whisper.cpp + answer-type rules, fully on-server; A/B and fusion parameters in `product/ml/semantic/AB_REPORT.md`. Disabled in the judged deployment (see Known limitations).
+- Red-team / robustness (T050, T051): `docs/robustness.md` and `product/eval/redteam/REPORT.md` — ElevenLabs synthetic callers (unseen engine) and in-house human recordings.
+- TigerData schema, event writer and `/history` (T047–T049): `docs/tigerdata.md` — hypertable, continuous aggregate, non-blocking writer; active in the judged deployment (`/health` reports `tigerdata: ok` once traffic flows).
+- Acoustic sub-signal, experimental (T053): `product/ml/acoustic/` — display-only, never part of the `/detect` verdict.
 - Escalation protocol (T052): `docs/escalation-protocol.md` — operational states and handoff rules.
-
-Not shipped (improvement work pending)
-- `docs/semantic-layer.md` (local semantic fusion / F-23) — pending: T042/T043/T044/T045
-- `docs/robustness.md` (red-team / ElevenLabs evaluation) — pending
-- Load/soak results in `docs/load-report.md` — pending
 
 ## Known limitations
 - See `docs/pre-judging-checklist.md` for the judge-focused runbook and limitations recorded during the final checklist run (T055).
+- The semantic layer is **disabled** in the judged deployment (`CONCORDE_SEMANTIC_ENABLED=false`): the fitted fusion weight (`w = -0.8`, base model) never received the bootstrap stability check that was set as a condition, so the served verdict is behavioral-only and deterministic (NFR-010). `/analyze` reports `semantic: null`, `semantic_available: false` — a degraded signal, never a fabricated zero.
+- The whisper.cpp source commit used for the offline transcripts is not recorded; the ggml model files are pinned by sha256 and the serving side is pinned through `whisper-rs` in `Cargo.lock`. A rebuild of the offline CLI on another machine could produce slightly different ground truth (NFR-009 risk, offline only).
+- Red-team clips were assembled from a 10-turn script without the agent's deliberate silences, so the two dominant features (`silence_break_delay_*`) are degenerate on them and the synthetic clips land close to the threshold; see `docs/robustness.md`.
 
 ## Verification & sign-off (pre-freeze)
 - Verification checklist:
@@ -172,148 +177,3 @@ Signatures:
 
 ---
 This README is authoritative for judges. For developer-level details see the per-component READMEs under `product/`.
-
-# CONCORDE — Synthetic Voice Detection System
-
-**Status**: Production deployment active at https://getconcorde.tech  
-**Model**: concorde-b-2 (trained behavioral features + ONNX inference)  
-**Accuracy**: Balanced 0.864 (71-call validation set); AUC 0.944  
-**Latency**: p99 ≤ 585ms (< 1s hard limit)
-
-## Thesis
-
-Behavioral/conversational features are the **primary signal**, not acoustic. A lightweight Rust service provides:
-- Defensive parsing (4 input shapes per FR-003, always HTTP 200)
-- Real-time VAD (own implementation, not from /turns.json)
-- Feature extraction (23 behavioral features, fc-1 contract frozen)
-- ONNX inference (no deep learning, LightGBM export)
-
-## Repository Structure
-
-- **`product/`** — Rust API, deployment, infrastructure
-  - `api/` — Axum service, WAV parsing, feature extraction, ONNX inference
-  - `deploy/` — Vultr deployment, snapshot/standby runbook, Caddy config
-  - `ml/` — Python reference feature extractor (parity validated against Rust)
-  - `console/` — React dashboard (SPA served by Caddy)
-  - `artifacts/` — ONNX model binary, feature contract (gitignored audio)
-
-- **`ml/`** — ML pipeline (offline, never in serving path)
-  - `features/` — Feature extraction (fc-1 contract)
-  - `train/` — LightGBM training with speaker-grouped CV
-  - `export/` — ONNX export
-  - `validation/` — VAD F1 validation, parity checks
-  - `eda/`, `semantic/` — Exploratory work, Gemini layer (optional)
-
-- **`docs/`** — Specification, reports, runbooks
-  - `CONCORDE_Especificacion_Tecnica_v1_0.pdf` — Full technical spec (§1–18)
-  - `latency-report.md` — Final p50/p95/p99 measurements
-  - `pre-judging-checklist.md` — Pre-submission verification results
-  - `design-reference.html` — Console design system
-  - `escalation-protocol.md` — Human-in-the-loop escalation (Green/Review/Transfer)
-
-- **`orchestration/`** — Cauce task board (coordination tooling only)
-  - No product code here; keep it separate
-
-## Quick Start
-
-### Deployment
-
-```bash
-# First time only (on server)
-orchestration/scripts/setup.sh
-
-# Claim + work on a task
-orchestration/scripts/work.sh [owner] [agent]
-
-# Finish and merge to main
-orchestration/scripts/finish.sh <task-id>
-
-# Dashboard
-orchestration/scripts/dashboard.sh
-```
-
-### API
-
-```bash
-# Verify deployment is live
-curl -s https://getconcorde.tech/health | jq .
-
-# Run fault-injection suite (all 4 input shapes)
-bash product/api/tests/fault_injection_remote.sh https://getconcorde.tech
-
-# Test /detect endpoint
-curl -X POST https://getconcorde.tech/detect \
-  -H 'Content-Type: application/json' \
-  -d '{"call_id":"test","audio_base64":"<base64-wav>","sample_rate":8000,"channels":2}'
-```
-
-### ML Pipeline
-
-```bash
-# Extract features (Python reference)
-python ml/features/extract.py <wav-path>
-
-# Validate VAD against turns.json
-python ml/validation/vad_validator.py --split val
-
-# Train + cross-validate
-python ml/train/train.py --split train --out model.pkl
-
-# Export to ONNX
-python ml/export/export_onnx.py --model model.pkl --out model.onnx
-```
-
-## Key Constraints (Non-Negotiable)
-
-1. **`POST /detect` always returns HTTP 200** with exactly `{"is_synthetic": <bool>, "confidence": <float in [0,1]>}` — no extra keys (ADR-006, ADR-013)
-2. **Feature contract fc-1 is frozen** — 23 behavioral features in exact order; silent reordering = wrong verdicts (§9, AGENTS.md)
-3. **Own VAD required** — must validate against turns.json files (F1 ≥ 0.85) before training (ADR-003, R-01)
-4. **No speaker identification** — ever (§13.4, NFR-011)
-5. **Defensive parsing** — accepts raw base64, JSON (any audio field name), multipart, raw WAV without config (FR-003, ADR-009)
-
-## Known Limitations
-
-| Issue | Impact | Workaround / Plan |
-|-------|--------|-------------------|
-| **Semantic layer (Gemini) disabled** | Loses optional ASR/semantic vote (lower priority per MoSCoW §3:SHOULD); behavioral signal sufficient | Enabled via `CONCORDE_SEMANTIC_ENABLED=1` + `GEMINI_API_KEY` after judging; hard timeout configured for safety |
-| **Console manual browser testing pending** | 3-view load times not directly timed; landing page only (85ms verified) | Detail/Exec views designed for < 5s each; total estimate ~385ms (well under 20s requirement) |
-| **Acoustic signal not integrated** | Avoids spurious correlation to training TTS artifacts; single-signal design (ADR-001) | Additive-only path exists in `ml/semantic/`; can add if behavioral signal insufficient in practice |
-| **Tiger Data logging disabled** | No event streaming to external warehouse during judging | In-process logs available; post-judging integration covered by escalation-protocol.md |
-| **No MongoDB/Snowflake/Solana** | Out of scope per MoSCoW (§3:WON'T) | Architecture supports pluggable logging; not a blocker for F1/F2 |
-| **Domain `.tech` not fully configured** | Currently on getconcorde.tech; not a .tech FQDN | Full DNS/routing verified; production routing post-judging |
-| **Probe-turn audio detector (F-23) degrades to null on ~43% of calls** | Measured 2026-09-12 (T043, full 353-call dataset): the audio-only detector (log-mel + subsequence-DTW template bank, `product/artifacts/probe_templates.json`) confidently classifies present/absent for only ~57% of calls; the rest (`ambiguous_rate = 0.4336`) correctly degrade F-23 to unavailable (AGENTS.md rule 4/ADR-008 — no unmarked degradation) rather than guess. `confident_false_positives = 0` over 76 probe-absent calls is the real safety gate and holds without exception; a naive single-threshold cut was deliberately rejected because it would have made this same bank's false-positive rate ~96%. **Consequence for the pitch**: F-23 (Gemini/whisper semantic layer, SHOULD-priority) contributes real signal on fewer than half of all calls; the behavioral core (fc-1, MUST-priority) is what the verdict depends on for the rest. See `product/ml/README.md`'s probe-detector section for the full validation table and `product/ml/semantic/probe_detector.py` for the degrade-to-null logic. |
-
-## Deployment & Operations
-
-- **Status**: ✓ Live at https://getconcorde.tech (Vultr Mexico City instance)
-- **Model version**: concorde-b-2 (real model, confirmed 2026-09-13)
-- **Uptime**: 1516s+ (verified); systemd auto-restart enabled
-- **Latency**: p95 = 568ms, p99 = 585ms (validated on 71 val clips)
-- **Fallback**: Always returns `{"is_synthetic": false, "confidence": 0.50}` on error (never 5xx)
-
-### Emergency Procedures
-
-See `product/deploy/RUNBOOK.md` for:
-- **Snapshot** — Vultr snapshot after real-model deploy
-- **Restore** — Cold-standby instance from snapshot
-- **Health watch** — One-liner monitoring; `watch_health.sh` script
-- **Escalation** — Paul (infra) → Diego (modeling) → Néstor (frontend)
-- **Allowed during judging** — Restart, standby switch, DNS change only
-- **Forbidden during judging** — Code changes, model swaps, binary rebuilds
-
-## Documentation Links
-
-- **Technical Spec**: `docs/CONCORDE_Especificacion_Tecnica_v1_0.pdf` (source of truth)
-- **Latency Report**: `docs/latency-report.md` (p50/p95/p99 + accuracy metrics)
-- **Pre-Judging Checklist**: `docs/pre-judging-checklist.md` (verification results)
-- **Deploy Log**: `product/deploy/DEPLOY_LOG.md` (T024/T025 deployment history)
-- **Runbook**: `product/deploy/RUNBOOK.md` (emergency procedures, §18.3)
-- **Escalation Protocol**: `docs/escalation-protocol.md` (Green/Review/Transfer)
-- **Console Design**: `docs/design-reference.html` (interactive design system)
-
----
-⚠️ **KNOWN ISSUE — PENDING AUDIT**: This file currently contains two
-concatenated README drafts with contradictory numbers (accuracy 0.8466
-vs 0.864; latency mean/max vs p95/p99) and possibly stale claims about
-TigerData/semantic layer status. Needs reconciliation against source
-reports before judging. — flagged 2026-09-13

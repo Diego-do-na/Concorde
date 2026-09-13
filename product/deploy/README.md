@@ -38,7 +38,7 @@ This directory contains production deployment configuration for the CONCORDE API
    scp -P 2222 product/deploy/env.server.template root@100.93.147.55:/opt/concorde/.env
    ssh -p 2222 root@100.93.147.55
    # On server:
-   nano /opt/concorde/.env  # Fill in GEMINI_API_KEY, TIGERDATA_URL, etc.
+   nano /opt/concorde/.env  # Fill in TIGERDATA_URL, etc. (no external LLM keys: the semantic layer is fully local)
    chown concorde:concorde /opt/concorde/.env
    chmod 600 /opt/concorde/.env
    ```
@@ -142,7 +142,6 @@ http://216.238.90.138/detect        (IP-only, HTTP, fallback only)
 - `GIT_SHA=` — Filled by deploy.sh at deploy time; shown by /health and /version
 
 **Secrets** (filled by hand, **never committed**):
-- `GEMINI_API_KEY` — For semantic layer (F-23), if enabled
 - `TIGERDATA_URL` — PostgreSQL connection for structured logging (optional, COULD priority)
 
 ## Service Management
