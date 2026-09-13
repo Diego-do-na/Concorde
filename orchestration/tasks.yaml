@@ -2226,11 +2226,11 @@ tasks:
   - T038
   - T055
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-cursor-agent
   branch: task/T056
   claimed_at: '2026-09-13T02:41:10+00:00'
-  done_at: null
+  done_at: '2026-09-13T03:16:58+00:00'
 - id: T058
   title: '[Paul] Confirm Model concurrency strategy under real load: Mutex<Model>
     vs a Session pool (NFR-004 follow-up)'
