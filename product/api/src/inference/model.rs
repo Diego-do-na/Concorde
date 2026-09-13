@@ -2,12 +2,11 @@ use std::path::Path;
 use std::fs::File;
 use std::io::Read;
 use std::env;
-use std::sync::Arc;
 
 use serde::Deserialize;
 use anyhow::{Result, Context};
 
-use ort::Session;
+use ort::session::Session;
 
 use crate::features::FC1_NAMES;
 
@@ -80,9 +79,12 @@ impl Model {
 
         // initialize ort environment (uses global init if not yet committed)
         // create session with 1 intra-thread
-        let mut session = Session::builder()?
-            .with_intra_threads(1)?
-            .commit_from_file(path)?;
+        let session = Session::builder()
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .with_intra_threads(1)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?
+            .commit_from_file(path)
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
 
         Ok(Self { session, meta })
     }
@@ -92,7 +94,7 @@ impl Model {
     /// sigmoid(a * raw + b), then thresholds to produce verdict + confidence.
     pub fn score(&mut self, features: [f64; 23]) -> Result<Scored> {
         use ndarray::Array2;
-        use ort::TensorRef;
+        use ort::value::TensorRef;
 
         let vec_f32: Vec<f32> = features.iter().map(|&v| v as f32).collect();
         let arr = Array2::from_shape_vec((1, 23), vec_f32)
@@ -101,8 +103,14 @@ impl Model {
         let outputs = self.session.run(inputs)?;
         let out = &outputs[0];
         let view = out.try_extract_array::<f32>()?;
-        let one = view.into_dimensionality::<ndarray::Ix1>()?.to_owned();
-        let raw = one[0] as f64;
+        // Accept any output shape (`(1,)`, `(1, 1)`, ...) as long as it
+        // carries exactly one scalar — the ONNX graph is trusted to emit a
+        // single logit/probability per call, but its exact rank isn't part
+        // of the meta contract, so don't require a particular one.
+        let raw = *view
+            .iter()
+            .next()
+            .context("model output tensor is empty")? as f64;
 
         // Platt sigmoid
         let a = self.meta.calibration.a;

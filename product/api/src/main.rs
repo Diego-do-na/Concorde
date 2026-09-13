@@ -1,4 +1,7 @@
-use std::{net::SocketAddr, sync::Arc};
+use std::{
+    net::SocketAddr,
+    sync::{Arc, Mutex},
+};
 use tracing::info;
 
 use concorde_api::{AppState, Config};
@@ -19,7 +22,7 @@ async fn main() -> anyhow::Result<()> {
     // load model eagerly if configured (abort on mismatch)
     let model = if let Some(path) = config.model_path.clone() {
         match Model::load(std::path::Path::new(&path)) {
-            Ok(m) => Some(Arc::new(m)),
+            Ok(m) => Some(Arc::new(Mutex::new(m))),
             Err(e) => {
                 tracing::error!(error=%e, "failed to load model, aborting startup");
                 return Err(e);
