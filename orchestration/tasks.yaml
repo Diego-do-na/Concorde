@@ -2076,11 +2076,11 @@ tasks:
   - T038
   - T045
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-cursor-agent
   branch: task/T051
   claimed_at: '2026-09-13T07:01:33+00:00'
-  done_at: null
+  done_at: '2026-09-13T07:27:55+00:00'
 - id: T052
   title: '[Paul] Escalation protocol design doc (active defence: green / review /
     transfer to human fraud agent)'
