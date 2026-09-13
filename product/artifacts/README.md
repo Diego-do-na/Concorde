@@ -41,6 +41,41 @@ classifier and its provenance metadata.
 - **`CHANGELOG.md`** — one appended line per exported `model_version`,
   carrying the same `git_sha`/`seed`/`manifest_sha256` triple needed to
   reproduce it.
+- **`probe_templates.json`** — the probe-turn detector's template bank
+  (T043): finds the fixed agent probe turn *directly from audio*, with no
+  ASR involved, so the Rust detector (T045) can run it in `/detect`'s
+  serving path. Produced by `ml/semantic/probe_detector.py` from 3 TRAIN
+  calls whose probe turn is short (the phrase alone, ~2.5 s), validated on
+  every call with T042's ground truth. Schema:
+
+  ```jsonc
+  {
+    "version": "probe-templates-v1",
+    "mel_params": { "sample_rate": 8000, "n_fft": 256, "hop": 80, "n_mels": 32, "fmin": 50.0, "fmax": 4000.0 },
+    "templates": [ [ [ ...32 floats... ], ... ], ... ],  // 3 templates, each (frames x 32)
+    "template_source_calls": [ "<anon_id>", ... ],
+    "threshold": <float>,          // zone midpoint, TRAIN only (ADR-012) -- logging/back-compat ONLY, not what classify_score() uses
+    "min_turn_frames": <int>,      // below this, a query can't host the phrase
+    "ambiguity_bounds": { "present_le": <float>, "absent_ge": <float> }  // see below
+  }
+  ```
+
+  Detection: 32-band log-mel (per-band z-normalised, L2-normalised frames)
+  matched against each template with open-begin/open-end subsequence DTW
+  (cosine cost, normalised by template length); a call's score is the min
+  over the bank. **The consumer must use `classify_score(score,
+  ambiguity_bounds.present_le, ambiguity_bounds.absent_ge)`, never a bare
+  `score <= threshold` comparison**: `score <= present_le` means
+  confidently "probe present", `score >= absent_ge` means confidently
+  "probe absent", and anything strictly between the two bounds is the
+  **ambiguous zone** — F-23 must degrade to unavailable there (logged),
+  not guess (AGENTS.md rule 4 / ADR-008). This is not a corner case:
+  measured 2026-09-12 on the full 353-call dataset, `ambiguous_rate =
+  0.4336` — **known, documented limitation**, not smoothed over (see the
+  root README's Known Limitations table and `product/ml/README.md`'s
+  probe-detector section for the full validation table, including why
+  `confident_false_positives = 0` is the real safety gate here instead of
+  a naive threshold's false-positive rate).
 
 ## Reproducing a version
 
