@@ -814,10 +814,10 @@ tasks:
   depends_on:
   - T017
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: NC-EC-claude
+  branch: task/T018
+  claimed_at: '2026-09-13T00:13:35+00:00'
   done_at: null
 - id: T019
   title: '[Diego] Metrics report: balanced accuracy first, then AUC, EER, Brier, ECE,
