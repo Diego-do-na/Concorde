@@ -227,3 +227,22 @@ Additional HTTP routes
 }
 ```
 
+Live feed (T027)
+- `GET /feed/recent?limit=N` — returns the most-recent compact feed events as a JSON array, newest-first. Each event has the schema:
+
+```json
+{
+  "id": "string",
+  "ts": 1690000000.123,           // epoch seconds (float)
+  "duration_s": 12.34,
+  "is_synthetic": false,
+  "confidence": 0.75,
+  "latency_ms": 123.4,
+  "signals": { "behavioral": true, "semantic": null, "acoustic": null },
+  "model_version": "v0.1.0"
+}
+```
+
+- `GET /feed/analysis/:id` — returns the full `/analyze` payload previously retained for that id, or 404 if not retained (only the last 50 analyses are kept).
+- `GET /ws` — websocket endpoint that streams new feed events as JSON. Basic rate limiting limits concurrent WS connections.
+
