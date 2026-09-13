@@ -1,0 +1,8 @@
+{
+  "processed_24h": 12345,
+  "synthetic_flagged": 42,
+  "latency_ms": { "p50": 180, "p90": 850, "p95": 3200, "p99": 5200 },
+  "degradation_rate": 0.012,
+  "validation": { "roc_auc": 0.918, "detection_recall": 0.85 },
+  "verdicts": { "verified": 11500, "review": 180, "synthetic": 165 }
+}
