@@ -311,3 +311,121 @@ startup on any mismatch, FR-006) and appends one line to
   existing changelog. Re-run it against the real `ml/data/model_lgbm.txt`
   once T016-T018 have produced one locally to get the equivalent guarantee
   on the actual shipped model.
+
+## Semantic layer: local whisper.cpp transcription + answer-type rules (T042)
+
+Fully local route (approved: no audio or text ever leaves our machines) for
+the optional semantic sub-signal (F-23, FR-014). `semantic/transcribe.py`
+transcribes the whole dataset with the same whisper.cpp CLI/models that
+will eventually serve, `semantic/rules.py` classifies the caller's answer
+to the probe question with a fixed rule table — this rule table, not any
+LLM call, is the current definition of `invention_score`; T045 ports it to
+Rust and parity-tests against it.
+
+### One-time setup: build whisper.cpp + download models
+
+```bash
+cd product/ml/semantic
+git clone --depth 1 https://github.com/ggerganov/whisper.cpp.git   # gitignored
+brew install cmake                                                  # if not already present
+cmake -B whisper.cpp/build -S whisper.cpp
+cmake --build whisper.cpp/build --config Release --parallel 4
+./get_models.sh   # downloads ggml-tiny.bin + ggml-base.bin into models/ (sha256-verified, gitignored)
+```
+
+This builds CPU-only (Accelerate/Metal backends are picked up automatically
+on macOS but nothing here requires a GPU). `whisper.cpp/` and `models/`
+are both gitignored (product/.gitignore) — every machine builds/downloads
+its own copy.
+
+### Running the background job
+
+```bash
+cd product/ml
+export CONCORDE_DATASET_DIR=...   # see product/.env.example
+nohup python3 semantic/transcribe.py > semantic/cache/transcribe.log 2>&1 &
+tail -f semantic/cache/transcribe.log   # prints per-item timing + ETA
+```
+
+Transcribes every call in `manifest.csv` (both splits — this is data
+preparation, not model selection, so ADR-012's `val` restriction doesn't
+apply here), both channels, both models (`tiny`, `base`; `language=es`),
+split on `turns/<id>.json` boundaries. Each channel's turns are resampled
+8→16 kHz and concatenated into one clip (a short silence gap between
+turns) so whisper-cli runs **once per (call, channel, model)** instead of
+once per turn — measured ~1 s per agent channel for `base` at 4 threads,
+whole dataset both models both channels ~30–60 min. whisper's own segment
+timestamps are reassigned back to the original turn windows by nearest
+offset, which is what turns a single subprocess call per channel into
+per-turn transcripts.
+
+Resumable: `transcribe_and_cache()` skips any `(call, model)` whose cache
+file already exists, so a killed/re-run job does zero repeated whisper
+work. Safe to `nohup ... &` and forget.
+
+### Cache layout (gitignored, product/.gitignore's `ml/semantic/cache/`)
+
+```
+cache/
+    transcripts/<model>/<anon_id>.json   {"anon_id", "model", "language",
+                                           "turns": [{"index","channel",
+                                           "start","end","text"}, ...]}
+    probe_ground_truth.json              {"model": "base", "considered",
+                                           "found", "coverage",
+                                           "calls": {<anon_id>: {
+                                             "probe_found",
+                                             "probe_turn_index", "probe_score",
+                                             "answer_turn_index",
+                                             "response_latency"}}}
+```
+
+`turns[].text` can contain sentence fragments that read like they spill
+across a turn boundary (e.g. an agent's sentence cut mid-word) — this is
+`turns/<id>.json` itself (VAD/pause-based turn boundaries, not
+sentence-aligned), not a transcription bug; overlap/interruption is
+exactly the behavioral signal the rest of this system is built around.
+
+### Probe ground truth (for T043)
+
+Per call, `transcribe.find_probe_turn()` fuzzy-matches every agent
+(channel 1) turn's `base`-model transcript against the fixed probe phrase
+*"esto es sobre su cuenta nómina plus o sobre su crédito verde"* (sliding
+word-window `difflib` ratio against the literal phrase plus three known
+ASR misspellings of "nómina plus" — "no mina plus", "no mine plus",
+"nomina fluz" — `PROBE_MATCH_THRESHOLD = 0.60`), and `find_answer_turn()`
+takes the first caller (channel 0) turn after it. Measured coverage is
+printed at the end of the transcribe.py run and asserted by
+`semantic/tests/test_rules.py` (>= 55% of calls with a cached `base`
+transcript).
+
+### Answer-type rule table (`rules.py` — THE definition)
+
+Checked in this priority order (first match wins) against the caller's
+answer turn:
+
+| answer_type | matched when | invention_score |
+|---|---|---|
+| question_back | caller asks back ("¿cuál es?", "no entiendo", "¿podría repetir?") | 0.15 |
+| denial | caller states absence ("no tengo", "no cuento con", "no sé", "no existe", "no me aparece", "ninguna") | 0.05 |
+| hedge | caller qualifies the answer ("creo que", "no estoy seguro", "me imagino", "más o menos", "tal vez") | 0.35 |
+| assertion_numeric | answer contains >= 3 digit characters | 0.90 |
+| assertion_product | answer names one of the two offered products ("nómina plus" / "crédito verde", incl. ASR spelling variants) | 0.85 |
+| assertion_name | answer states a personal name ("me llamo…", "mi nombre es…", "soy…" + capitalized word) | 0.80 |
+| other | none of the above | 0.50 |
+
+`invention_score` is a fixed lookup, not learned: assertion_* scores high
+(Altur's hint — a person with nothing to report says so; a scripted
+responder tends to invent a confident answer), denial/question_back score
+low, hedge sits in between. `word_count` and `response_latency` (from the
+probe ground truth) travel alongside `answer_type` in `analyze_answer()`
+but don't affect the score.
+
+Generate `semantic/DIGEST.md` (the rule table plus the answer_type
+distribution overall and split by manifest label human/synthetic — the
+first honest look at whether F-23 carries any signal) once transcripts +
+probe ground truth exist:
+
+```bash
+cd product/ml
+python3 -m semantic.rules
+```
