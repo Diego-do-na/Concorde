@@ -38,6 +38,7 @@ pub async fn detect(
         let call_id = parsed.call_id.clone();
 
         let analysis: Analysis = pipeline::analyze_bytes(&state, &parsed.wav)
+            .await
             .map_err(|e| DetectFailure::new(e.to_string(), call_id.clone()))?;
 
         log_detect(&request_id, call_id.as_deref(), byte_size, &analysis);
@@ -73,6 +74,15 @@ fn log_detect(request_id: &str, call_id: Option<&str>, byte_size: usize, analysi
         is_synthetic = analysis.verdict.is_synthetic,
         confidence = analysis.verdict.confidence,
         model_version = analysis.model_version.as_deref().unwrap_or("none"),
+        semantic_available = analysis.semantic.available,
+        semantic_reason = analysis.semantic.reason,
+        probe_detected = analysis.semantic.probe_detected,
+        probe_ms = analysis.semantic.probe_ms,
+        asr_ms = analysis.semantic.asr_ms.unwrap_or(0.0),
+        answer_type = analysis.semantic.answer_type.unwrap_or("none"),
+        invention_score = analysis.semantic.invention_score,
+        p_behavioral = analysis.semantic.p_behavioral,
+        p_final = analysis.semantic.p_final,
         "detect handler completed"
     );
 }

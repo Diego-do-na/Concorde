@@ -27,10 +27,28 @@ pub struct AppState {
     pub metrics: crate::metrics::Metrics,
     /// Live feed for recent verdicts and websocket subscriptions.
     pub feed: std::sync::Arc<crate::feed::Feed>,
+    /// The live local semantic layer (T045, ADR-008): probe detector +
+    /// whisper-rs ASR + fusion params, booted once at process start
+    /// (`main.rs`, alongside the ONNX model) -- `None` when
+    /// `CONCORDE_SEMANTIC_ENABLED=false` or boot failed (never blocks
+    /// server startup, see `semantic::SemanticEngine::boot`'s docs).
+    pub semantic: Option<Arc<crate::semantic::SemanticEngine>>,
 }
 
 impl AppState {
     pub fn new(config: Config, model: Option<SharedModel>) -> Self {
+        Self::new_with_semantic(config, model, None)
+    }
+
+    /// `main.rs` uses this to pass in the eagerly-booted semantic engine;
+    /// `new` (used throughout the existing test suite) keeps its old
+    /// two-argument shape and always starts with semantic disabled, since
+    /// none of those call sites need it.
+    pub fn new_with_semantic(
+        config: Config,
+        model: Option<SharedModel>,
+        semantic: Option<Arc<crate::semantic::SemanticEngine>>,
+    ) -> Self {
         let git_sha = std::env::var("GIT_SHA")
             .ok()
             .or_else(|| option_env!("GIT_SHA").map(|s| s.to_string()))
@@ -44,6 +62,7 @@ impl AppState {
             deps: Arc::new(Mutex::new(HashMap::new())),
             metrics: crate::metrics::GLOBAL_METRICS.clone(),
             feed: crate::feed::Feed::new(500, 50, 32),
+            semantic,
         }
     }
 

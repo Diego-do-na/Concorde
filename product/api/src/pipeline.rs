@@ -26,6 +26,7 @@ use serde::Serialize;
 use crate::analysis::waveform;
 use crate::audio::vad::{detect_turns, Turn, VadParams};
 use crate::features::{self, FC1_NAMES};
+use crate::semantic::{PendingSemantic, SemanticOutcome};
 use crate::state::SharedState;
 
 /// Per-stage wall-clock cost of one `/detect` call, in milliseconds.
@@ -94,6 +95,7 @@ pub struct Analysis {
     pub timings_ms: TimingsMs,
     pub model_version: Option<String>,
     pub waveform: waveform::Waveform,
+    pub semantic: SemanticOutcome,
 }
 
 /// Run the full pipeline over a decoded-or-not WAV byte slice. Fails only
@@ -101,13 +103,21 @@ pub struct Analysis {
 /// (e.g. no model loaded) — both are genuine incidents, left for the
 /// caller (`routes::detect`, via `run_failsafe`) to turn into the fallback
 /// verdict and log.
-pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
+pub async fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
+    analyze_bytes_with_timeout(state, bytes, state.config.semantic_timeout_ms).await
+}
+
+pub async fn analyze_bytes_with_timeout(
+    state: &SharedState,
+    bytes: &[u8],
+    semantic_timeout_ms: u64,
+) -> Result<Analysis> {
     let total_start = Instant::now();
 
     let decode_start = Instant::now();
     let (sample_rate, duration_s) = wav_duration(bytes).context("WAV decode failed")?;
+    let (ch0_samples, ch1_samples) = wav_channels(bytes).context("WAV channel decode failed")?;
     let decode_ms = elapsed_ms(decode_start);
-    let _ = sample_rate; // kept for readability at call sites / future logging
 
     let vad_start = Instant::now();
     let params = VadParams::default();
@@ -116,6 +126,18 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
 
     let (caller, agent) = turns.split();
 
+    // Stage 1: SPAWN ASR in background if semantic engine is active
+    let pending_semantic = if let Some(ref semantic) = state.semantic {
+        semantic.spawn(&turns.turns, &ch0_samples, &ch1_samples, sample_rate)
+    } else {
+        PendingSemantic::Unavailable {
+            reason: "disabled",
+            probe_detected: false,
+            probe_ms: 0.0,
+        }
+    };
+
+    // Stage 2: Extract features & run ONNX inference concurrently
     let features_start = Instant::now();
     let feature_vec = features::extract(&caller, &agent, duration_s);
     let named_features: Vec<(&'static str, f64)> =
@@ -124,23 +146,34 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
 
     let inference_start = Instant::now();
     let model = state.model.as_ref().context("no model loaded")?;
-    let scored = {
+    let (scored, model_version, threshold) = {
         let mut guard = model.lock().expect("model mutex poisoned");
-        guard.score(feature_vec).context("inference failed")?
+        let scored = guard.score(feature_vec).context("inference failed")?;
+        let version = guard.meta.model_version.clone();
+        let thr = std::env::var("CONCORDE_THRESHOLD")
+            .ok()
+            .and_then(|s| s.parse::<f64>().ok())
+            .unwrap_or(guard.meta.threshold as f64);
+        (scored, version, thr)
     };
     let inference_ms = elapsed_ms(inference_start);
 
-    let model_version = {
-        let guard = model.lock().expect("model mutex poisoned");
-        Some(guard.meta.model_version.clone())
+    // Stage 3: Wait for ASR up to the remaining timeout budget
+    let semantic_outcome = if let Some(ref semantic) = state.semantic {
+        semantic.finish(pending_semantic, semantic_timeout_ms, scored.p_synthetic).await
+    } else {
+        SemanticOutcome::disabled(scored.p_synthetic)
     };
+
+    // Stage 4: Produce final verdict from fused p_final
+    let p_final = semantic_outcome.p_final;
+    let is_synthetic = p_final >= threshold;
+    let confidence = if is_synthetic { p_final } else { 1.0 - p_final };
 
     let events = compute_events(&caller, &agent, duration_s);
     let turn_counts = TurnCounts { caller: caller.len(), agent: agent.len() };
 
-    // Compute waveform envelope (console-only enrichment, §8.2, ADR-013)
     let waveform_obj = waveform::compute(bytes, 50).context("waveform extraction failed")?;
-
     let total_ms = elapsed_ms(total_start);
 
     Ok(Analysis {
@@ -150,9 +183,9 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
         events,
         features: named_features,
         verdict: Verdict {
-            is_synthetic: scored.is_synthetic,
-            confidence: scored.confidence,
-            p_synthetic: scored.p_synthetic,
+            is_synthetic,
+            confidence,
+            p_synthetic: p_final,
         },
         timings_ms: TimingsMs {
             decode: decode_ms,
@@ -161,8 +194,9 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
             inference: inference_ms,
             total: total_ms,
         },
-        model_version,
+        model_version: Some(model_version),
         waveform: waveform_obj,
+        semantic: semantic_outcome,
     })
 }
 
@@ -182,6 +216,46 @@ fn wav_duration(wav: &[u8]) -> Result<(u32, f32)> {
     }
     let duration_s = reader.duration() as f32 / spec.sample_rate as f32;
     Ok((spec.sample_rate, duration_s))
+}
+
+fn wav_channels(wav: &[u8]) -> Result<(Vec<f32>, Vec<f32>)> {
+    let mut reader = hound::WavReader::new(Cursor::new(wav)).context("not a valid WAV file")?;
+    let spec = reader.spec();
+    let num_channels = spec.channels as usize;
+    if num_channels == 0 {
+        anyhow::bail!("WAV has 0 channels");
+    }
+
+    let mut ch0 = Vec::new();
+    let mut ch1 = Vec::new();
+
+    match spec.sample_format {
+        hound::SampleFormat::Int => {
+            let max_val = (1i64 << (spec.bits_per_sample - 1)) as f32;
+            let samples: Vec<i32> = reader.samples::<i32>().collect::<Result<_, _>>()?;
+            for chunk in samples.chunks(num_channels) {
+                if chunk.len() == num_channels {
+                    let s0 = chunk[0] as f32 / max_val;
+                    let s1 = if num_channels > 1 { chunk[1] as f32 / max_val } else { s0 };
+                    ch0.push(s0);
+                    ch1.push(s1);
+                }
+            }
+        }
+        hound::SampleFormat::Float => {
+            let samples: Vec<f32> = reader.samples::<f32>().collect::<Result<_, _>>()?;
+            for chunk in samples.chunks(num_channels) {
+                if chunk.len() == num_channels {
+                    let s0 = chunk[0];
+                    let s1 = if num_channels > 1 { chunk[1] } else { s0 };
+                    ch0.push(s0);
+                    ch1.push(s1);
+                }
+            }
+        }
+    }
+
+    Ok((ch0, ch1))
 }
 
 /// Derive §8.2 dialogue events from the caller/agent turn lists.
@@ -294,30 +368,30 @@ mod tests {
             .collect()
     }
 
-    #[test]
-    fn happy_path_produces_a_real_scored_verdict() {
+    #[tokio::test]
+    async fn happy_path_produces_a_real_scored_verdict() {
         let state = test_state_with_model();
         let sr = 8000u32;
         let ch0 = sine(sr, 440.0, 400, 0.5);
         let ch1 = sine(sr, 440.0, 400, 0.5);
         let wav = stereo_wav(&ch0, &ch1, sr);
 
-        let analysis = analyze_bytes(&state, &wav).expect("pipeline succeeds");
+        let analysis = analyze_bytes(&state, &wav).await.expect("pipeline succeeds");
         assert!((0.0..=1.0).contains(&analysis.verdict.confidence));
         assert_eq!(analysis.features.len(), 23);
         assert!(analysis.model_version.is_some());
         assert!(analysis.timings_ms.total >= 0.0);
     }
 
-    #[test]
-    fn degenerate_silent_call_still_gets_a_real_verdict_not_the_placeholder() {
+    #[tokio::test]
+    async fn degenerate_silent_call_still_gets_a_real_verdict_not_the_placeholder() {
         let state = test_state_with_model();
         let sr = 8000u32;
         // 2s of pure silence on both channels: no turns at all.
         let silence = vec![0.0f32; sr as usize * 2];
         let wav = stereo_wav(&silence, &silence, sr);
 
-        let analysis = analyze_bytes(&state, &wav).expect("degenerate calls still score");
+        let analysis = analyze_bytes(&state, &wav).await.expect("degenerate calls still score");
         assert_eq!(analysis.turn_counts.caller, 0);
         assert_eq!(analysis.turn_counts.agent, 0);
         // The extractor defines an all-zero vector for a silent call, and
@@ -326,21 +400,21 @@ mod tests {
         assert!(analysis.features.iter().all(|(_, v)| *v == 0.0));
     }
 
-    #[test]
-    fn not_a_wav_file_is_a_pipeline_error() {
+    #[tokio::test]
+    async fn not_a_wav_file_is_a_pipeline_error() {
         let state = test_state_with_model();
-        let err = analyze_bytes(&state, b"not a wav file at all").unwrap_err();
+        let err = analyze_bytes(&state, b"not a wav file at all").await.unwrap_err();
         assert!(err.to_string().contains("WAV decode failed"));
     }
 
-    #[test]
-    fn missing_model_is_a_pipeline_error() {
+    #[tokio::test]
+    async fn missing_model_is_a_pipeline_error() {
         let config = Config::from_env();
         let state = std::sync::Arc::new(AppState::new(config, None));
         let sr = 8000u32;
         let ch0 = sine(sr, 440.0, 300, 0.5);
         let wav = stereo_wav(&ch0, &[], sr);
-        let err = analyze_bytes(&state, &wav).unwrap_err();
+        let err = analyze_bytes(&state, &wav).await.unwrap_err();
         assert!(err.to_string().contains("no model loaded"));
     }
 
