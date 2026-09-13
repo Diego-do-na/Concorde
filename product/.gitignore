@@ -2,6 +2,7 @@
 ml/data/
 ml/semantic/cache/
 ml/semantic/models/
+ml/semantic/whisper.cpp/
 api/tests/fixtures/*.wav
 eval/redteam/out/
 
