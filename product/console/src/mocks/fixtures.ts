@@ -1,3 +1,5 @@
+import type { Analysis, Event, TopFactor } from '../lib/api';
+
 // Deterministic fixture generator ported from reference buildCall()
 // xorshift32 RNG
 function xorshift(seed: number) {
@@ -20,8 +22,9 @@ export function makeWaveform(rng: () => number, duration_s = 10) {
   const caller: number[] = [];
   const agent: number[] = [];
   for (let i = 0; i < buckets; i++) {
-    caller.push(Math.floor(rng() * 32767));
-    agent.push(Math.floor(rng() * 32767));
+    // [0, 1], matching api/src/analysis/waveform.rs — not raw int16.
+    caller.push(Number(rng().toFixed(3)));
+    agent.push(Number(rng().toFixed(3)));
   }
   return { caller, agent, bucket_ms };
 }
@@ -31,10 +34,20 @@ export function buildCall(seed: number, id: number) {
   const duration_s = randInt(rng, 6, 20);
   const verdict = { is_synthetic: rng() > 0.7, confidence: Number((rng() * 0.4 + 0.6).toFixed(3)), threshold: 0.5 };
   const timeline = Array.from({ length: randInt(rng, 3, 8) }).map((_, i) => ({ t: i * (duration_s / 8), confidence: Number((rng() * 0.5 + 0.5).toFixed(3)) }));
-  const turns = { caller: [[0, 1]], agent: [[1, 2]] };
-  const events = [{ type: 'silence', t: 0, duration: 0 }];
-  const top_factors = [{ feature: 'F-01', value: Number(rng().toFixed(3)), direction: verdict.is_synthetic ? 'synthetic' : 'human', weight: Number((rng() * 2).toFixed(3)) }];
-  const analysis = {
+  const turns: { caller: [number, number][]; agent: [number, number][] } = { caller: [[0, 1]], agent: [[1, 2]] };
+  const events: Event[] = [{ type: 'silence', t: 0, duration: 0 }];
+  const top_factors: TopFactor[] = [
+    {
+      feature: 'F-01',
+      value: Number(rng().toFixed(3)),
+      direction: verdict.is_synthetic ? 'synthetic' : 'human',
+      weight: Number((rng() * 2).toFixed(3)),
+    },
+  ];
+  // Annotated, not inferred: these fixtures stand in for real wire payloads
+  // in a dozen tests, so the compiler should reject one that drifts from the
+  // contract instead of widening the type to match the drift.
+  const analysis: Analysis = {
     id: `call-${id}`,
     verdict,
     signals: { behavioral: {}, semantic: null, acoustic: null },
@@ -52,8 +65,8 @@ export function buildCall(seed: number, id: number) {
   return analysis;
 }
 
-export function makeFixtures(seed = 0x12345678) {
-  const out = [];
+export function makeFixtures(seed = 0x12345678): Analysis[] {
+  const out: Analysis[] = [];
   for (let i = 0; i < 14; i++) out.push(buildCall(seed, i));
   return out;
 }

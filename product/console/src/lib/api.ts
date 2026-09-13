@@ -1,5 +1,4 @@
 export const API_BASE = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_API_BASE) || '';
-export const USE_MOCKS = (typeof import.meta !== 'undefined' && (import.meta as any).env && (import.meta as any).env.VITE_USE_MOCKS) === '1';
 
 // TypeScript types mirroring spec §8.2 (plus waveform enrichment)
 export type Verdict = { is_synthetic: boolean; confidence: number; threshold: number };
@@ -20,6 +19,14 @@ export type Waveform = { caller: number[]; agent: number[]; bucket_ms: number };
 
 export type Analysis = {
   id: string;
+  /**
+   * Epoch seconds the event was published, straight off `FeedEvent.ts`.
+   * Optional because `POST /analyze` does not carry one — only the feed does.
+   * The monitor's TIME column used to render `new Date()` per row, so every
+   * call in the table claimed to have arrived at the instant of the last
+   * render.
+   */
+  ts?: number;
   verdict: Verdict;
   signals: Signals;
   degraded: Degraded;
@@ -66,8 +73,10 @@ export const TimingsZ = z.object({
 });
 export const MetaZ = z.object({ model_version: z.string(), git_sha: z.string(), feature_contract: z.string(), duration_s: z.number() });
 export const WaveformZ = z.object({ caller: z.array(z.number()), agent: z.array(z.number()), bucket_ms: z.number() });
-export const AnalysisZ = z.object({
-  id: z.string(),
+// What POST /analyze actually puts on the wire: AnalysisZ minus `id`.
+// AnalysisZ stays id-bearing because the feed rows and the retained analysis
+// do carry one, and the views key off it.
+export const AnalyzeResponseZ = z.object({
   verdict: VerdictZ,
   signals: SignalsZ,
   degraded: DegradedZ,
@@ -81,6 +90,8 @@ export const AnalysisZ = z.object({
   meta: MetaZ,
   waveform: WaveformZ.optional(),
 });
+
+export const AnalysisZ = AnalyzeResponseZ.extend({ id: z.string() });
 
 // HTTP helpers
 async function okJson(r: Response) {
@@ -119,48 +130,77 @@ export async function getFeedAnalysis(id: string): Promise<Analysis | null> {
 }
 
 // /detect endpoint returns only the verdict object (two-key JSON).
-export async function detect(input: { audio_base64?: string } | File): Promise<{ is_synthetic: boolean; confidence: number }> {
+//
+// `callId` is sent as the `call_id` field, which http::parse::extract_audio
+// reads from both JSON and multipart and feed::Feed::push then uses as the
+// retained key. Passing one is how a caller can look the analysis up again
+// afterwards; without it the service mints `evt-<n>` and the client has no
+// way to learn what it was.
+export async function detect(
+  input: { audio_base64?: string } | File,
+  callId?: string,
+): Promise<{ is_synthetic: boolean; confidence: number }> {
+  let res: Response;
   if (input instanceof File) {
     const form = new FormData();
+    // call_id goes in first, ahead of the audio part. Field order is
+    // irrelevant to a real multipart parser, but it keeps the small text
+    // field at the head of the stream, which is where anything reading the
+    // body incrementally will look for it.
+    if (callId) form.append('call_id', callId);
     form.append('file', input);
-    const res = await fetch(`${API_BASE}/detect`, { method: 'POST', body: form });
-    const body = await okJson(res);
-    if (!body || typeof body.is_synthetic !== 'boolean' || typeof body.confidence !== 'number') {
-      return { is_synthetic: false, confidence: 0.5 };
-    }
-    return { is_synthetic: body.is_synthetic, confidence: body.confidence };
+    res = await fetch(`${API_BASE}/detect`, { method: 'POST', body: form });
   } else {
-    const res = await fetch(`${API_BASE}/detect`, {
+    res = await fetch(`${API_BASE}/detect`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
+      body: JSON.stringify(callId ? { ...input, call_id: callId } : input),
     });
-    const body = await okJson(res);
-    if (!body || typeof body.is_synthetic !== 'boolean' || typeof body.confidence !== 'number') {
-      return { is_synthetic: false, confidence: 0.5 };
-    }
-    return { is_synthetic: body.is_synthetic, confidence: body.confidence };
   }
+  const body = await okJson(res);
+  // /detect never 5xxes and never returns a third key; anything else here is
+  // a transport failure, and the fallback verdict is the honest answer.
+  if (!body || typeof body.is_synthetic !== 'boolean' || typeof body.confidence !== 'number') {
+    return { is_synthetic: false, confidence: 0.5 };
+  }
+  return { is_synthetic: body.is_synthetic, confidence: body.confidence };
 }
 
 type AnalyzeInput = { audio_base64: string } | File;
 
-export async function analyze(input: AnalyzeInput): Promise<Analysis> {
+/**
+ * `POST /analyze` — the §8.2 superset behind the detail view.
+ *
+ * The wire body carries no `id`: `analysis::AnalyzeResponse` simply has no
+ * such field, while the console's `Analysis` needs one to key the detail
+ * route. Validating the response against the id-bearing schema therefore
+ * threw on *every* real call, and the demo view swallowed the throw and left
+ * "Open in detail" permanently disabled. Parse without the id, then attach
+ * the `call_id` we sent — the same id the feed retained the analysis under.
+ */
+export async function analyze(input: AnalyzeInput, callId?: string): Promise<Analysis> {
+  let res: Response;
   if (input instanceof File) {
     const form = new FormData();
+    if (callId) form.append('call_id', callId);
     form.append('file', input);
-    const res = await fetch(`${API_BASE}/analyze`, { method: 'POST', body: form });
-    const body = await okJson(res);
-    return AnalysisZ.parse(body);
+    res = await fetch(`${API_BASE}/analyze`, { method: 'POST', body: form });
   } else {
-    const res = await fetch(`${API_BASE}/analyze`, {
+    res = await fetch(`${API_BASE}/analyze`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ audio_base64: input.audio_base64 }),
+      body: JSON.stringify(
+        callId ? { audio_base64: input.audio_base64, call_id: callId } : { audio_base64: input.audio_base64 },
+      ),
     });
-    const body = await okJson(res);
-    return AnalysisZ.parse(body);
   }
+  const body = await okJson(res);
+  // This route is not scored, so a failure comes back as {"error": "..."}
+  // at HTTP 200 rather than a status code (ADR-013).
+  if (body && typeof body.error === 'string') throw new Error(body.error);
+
+  const parsed = AnalyzeResponseZ.parse(body);
+  return { ...parsed, id: (body && body.id) || callId || '' };
 }
 
 // ---------------------------------------------------------------------------
@@ -268,15 +308,81 @@ export function adaptRetained(id: string, raw: any): Analysis {
 // Feed: opens WS at /ws, backfills from GET /feed/recent immediately, and falls
 // back to polling /feed/recent every 3s when the socket is closed/errors.
 type FeedListener = (items: Analysis[]) => void;
-export class Feed {
+
+/**
+ * How the feed is actually being delivered right now. The header used to
+ * render this chip from the /health poll result, which meant it read POLLING
+ * even while a websocket was connected and delivering frames — it was
+ * reporting on a different subsystem entirely. `subscribeTransport` is what
+ * the shell reads instead.
+ */
+export type FeedTransport = 'WS' | 'POLLING' | 'OFFLINE';
+
+/**
+ * What a view actually needs from the feed. Props are typed against this
+ * rather than the `Feed` class so a test can hand in a plain object: an
+ * intersection with the class collapses to `never`, because `Feed` has
+ * private fields a structural stand-in cannot have.
+ */
+export interface FeedLike {
+  subscribe(cb: (items: Analysis[]) => void): () => void;
+  subscribeTransport(cb: (t: FeedTransport) => void): () => void;
+  close(): void;
+  /** Present on the real Feed; absent on simple stubs. */
+  reopen?(): void;
+}
+
+/** Websocket reconnect backoff bounds. */
+const RECONNECT_MIN_MS = 1000;
+const RECONNECT_MAX_MS = 15000;
+type TransportListener = (t: FeedTransport) => void;
+
+export class Feed implements FeedLike {
   private ws: WebSocket | null = null;
   private pollingId: number | null = null;
   private listeners: FeedListener[] = [];
+  private transportListeners: TransportListener[] = [];
+  /** True once at least one poll or frame has landed; drives OFFLINE. */
+  private everDelivered = false;
+  /** Set by close(); cleared by reopen(). Guards against reconnecting a feed
+   *  whose owner has gone away. */
+  private closed = false;
+  private reconnectId: number | null = null;
+  private reconnectDelayMs = RECONNECT_MIN_MS;
   public online = false;
+  public transport: FeedTransport = 'OFFLINE';
   public lastItems: Analysis[] = [];
   constructor(private base = API_BASE) {
     this.backfill();
     this.openSocket();
+  }
+
+  /**
+   * Bring a closed feed back up. Idempotent, and the reason it exists is
+   * React StrictMode: it mounts, unmounts and remounts every effect in
+   * development, so the provider's cleanup ran `close()` on the memoized
+   * instance and the remounted console was left permanently on polling
+   * against a socket that would never be reopened.
+   */
+  reopen() {
+    if (!this.closed) return;
+    this.closed = false;
+    this.backfill();
+    this.openSocket();
+  }
+
+  private setTransport(t: FeedTransport) {
+    if (this.transport === t) return;
+    this.transport = t;
+    for (const l of this.transportListeners) l(t);
+  }
+
+  subscribeTransport(cb: TransportListener) {
+    this.transportListeners.push(cb);
+    cb(this.transport);
+    return () => {
+      this.transportListeners = this.transportListeners.filter((x) => x !== cb);
+    };
   }
   private async backfill() {
     try {
@@ -289,12 +395,14 @@ export class Feed {
           this.lastItems = merged;
           this.emit(merged);
         }
+        this.everDelivered = true;
       }
     } catch {
       // silent: polling/WS will retry
     }
   }
   private openSocket() {
+    if (this.closed) return;
     try {
       if (typeof (globalThis as any).WebSocket === 'undefined') {
         this.startPolling();
@@ -306,7 +414,10 @@ export class Feed {
       this.ws = new WebSocket(url);
       this.ws.onopen = () => {
         this.online = true;
+        this.everDelivered = true;
+        this.reconnectDelayMs = RECONNECT_MIN_MS;
         this.stopPolling();
+        this.setTransport('WS');
       };
       this.ws.onmessage = (ev) => {
         try {
@@ -321,19 +432,40 @@ export class Feed {
           // ignore invalid messages
         }
       };
+      // A closed or errored socket is not an outage: polling still serves the
+      // feed, which is why POLLING is styled as a normal state and only
+      // OFFLINE is styled as degraded. But polling is the *fallback* — the
+      // feed keeps trying to get its socket back, so a service restart
+      // mid-demo recovers to WS on its own instead of polling forever.
       this.ws.onclose = () => {
         this.online = false;
         this.startPolling();
+        this.scheduleReconnect();
       };
       this.ws.onerror = () => {
         this.online = false;
         this.startPolling();
+        this.scheduleReconnect();
       };
     } catch {
       this.startPolling();
+      this.scheduleReconnect();
     }
   }
+
+  /** Exponential backoff, capped, so a down service is not hammered. */
+  private scheduleReconnect() {
+    if (this.closed || this.reconnectId) return;
+    const delay = this.reconnectDelayMs;
+    this.reconnectDelayMs = Math.min(delay * 2, RECONNECT_MAX_MS);
+    this.reconnectId = (globalThis as any).setTimeout(() => {
+      this.reconnectId = null;
+      if (this.closed || this.online) return;
+      this.openSocket();
+    }, delay) as any;
+  }
   private startPolling() {
+    this.setTransport(this.everDelivered ? 'POLLING' : 'OFFLINE');
     if (this.pollingId) return;
       this.pollingId = (globalThis as any).setInterval(async () => {
       try {
@@ -342,9 +474,13 @@ export class Feed {
           const parsed = dedupeById(parseFeedRows(items));
           this.lastItems = parsed;
           this.emit(parsed);
+          this.everDelivered = true;
+          this.setTransport('POLLING');
+        } else {
+          this.setTransport('OFFLINE');
         }
       } catch {
-        // silent
+        this.setTransport('OFFLINE');
       }
     }, 3000) as any;
   }
@@ -367,9 +503,16 @@ export class Feed {
   }
 
   close() {
+    this.closed = true;
+    if (this.reconnectId) {
+      (globalThis as any).clearTimeout(this.reconnectId);
+      this.reconnectId = null;
+    }
     try {
       this.ws?.close();
     } catch {}
+    this.ws = null;
+    this.online = false;
     this.stopPolling();
   }
 }

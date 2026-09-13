@@ -2,8 +2,20 @@
 // value per bucket_ms) into exactly N pixel-buckets for a given plot width.
 // Pure/no DOM so it is trivially unit-testable.
 
-/** int16-magnitude ceiling used by the offline waveform bucketiser (T029). */
-export const MAX_AMPLITUDE = 32767;
+/**
+ * Full-scale amplitude of `analysis.waveform.{caller,agent}`.
+ *
+ * This was 32767 — an int16 ceiling taken from the old fixture generator,
+ * which filled the buckets with raw i16 magnitudes. The service does not:
+ * `api/src/analysis/waveform.rs` divides every sample by `i16::MAX` (or
+ * `i32::MAX`, or takes the float sample as-is) before bucketing, and its
+ * doc comment says so — "peak absolute sample value in [0, 1]".
+ *
+ * Dividing an already-normalised envelope by 32767 again collapsed every
+ * bar to zero, so against the real service both lanes silently fell back to
+ * drawing turn blocks and no call ever showed a waveform.
+ */
+export const MAX_AMPLITUDE = 1;
 
 export const BAR_WIDTH_PX = 2;
 export const BAR_GAP_PX = 1;

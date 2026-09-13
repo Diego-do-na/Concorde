@@ -25,7 +25,7 @@ export const handlers = [
     } else {
       // msw exposes body as FormData for multipart
       try {
-        const form = await req.formData();
+        const form = await (req as any).formData();
         const file = form.get('file');
         payload = { file: !!file };
       } catch {
@@ -53,7 +53,7 @@ export const handlers = [
       } catch {}
     } else {
       try {
-        const form = await req.formData();
+        const form = await (req as any).formData();
         const file = form.get('file');
         if (file) confidence = 0.65;
       } catch {}
