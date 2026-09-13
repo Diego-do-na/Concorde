@@ -275,3 +275,20 @@ Tiger Data event writer (`storage/`, T048)
 - No audio, transcript text, or speaker-identifying data is ever written (NFR-011, §13.4) — a row is just `{request_id?, call_id?, is_synthetic, confidence, p_synthetic, duration_s, model_version, created_at}`. `request_id`/`call_id` are `Option` because `pipeline::analyze_bytes` (storage's only caller) doesn't itself see either id — both are assigned one layer up in `routes::detect`/`routes::analyze` — left as a hook for a future task to thread through rather than a schema change.
 - Tests: `cargo test --lib storage::` covers the unreachable-URL (never blocks, ends up `degraded`) and full-channel (drops + counts, never awaits) cases without a real database. `cargo test --lib storage::tests::ten_events_land_in_the_table -- --ignored` exercises the real insert path against a local/CI Postgres — set `TIGERDATA_TEST_URL` first.
 
+`GET /history` — historical chart data (`routes/history.rs`, T049, FR-015)
+- `GET /history?window=24h&bucket=1m` reads the Tiger Data continuous aggregate `detection_stats_1m_readable` (schema: `product/deploy/sql/001_init.sql`, reference: `docs/tigerdata.md`) and returns per-bucket count, synthetic count, p50/p95/p99 latency, and average confidence for the console exec view's historical strip.
+- `window` (default `24h`): `<n><unit>`, unit in `s|m|h|d`. `bucket` (default `1m`): one of `1m|5m|15m|1h|1d` — `1m` is the aggregate's native granularity; coarser values are re-bucketed on read via `time_bucket`.
+- Like storage's write side, this is observability, not a dependency: **always HTTP 200**. `TIGERDATA_URL` unset, or any connect/query error, returns `{"degraded": true, "buckets": []}` (logged internally as an `incident` event) rather than an error status or body. Example healthy response:
+
+```json
+{
+  "degraded": false,
+  "buckets": [
+    { "bucket": "2026-09-13T12:34:00+00:00", "count": 42, "synthetic_count": 9, "p50_latency_ms": 812.0, "p95_latency_ms": 2140.5, "p99_latency_ms": 3980.2, "avg_confidence": 0.71 }
+  ]
+}
+```
+
+- Keeps its own lazily-connected read `sqlx::PgPool`, separate from `storage::EventWriter`'s write-side pool — a read query has no reason to share a connection pool with the batched async writer.
+- Tests: `cargo test --lib routes::history::` covers the window/bucket parsers. Full end-to-end coverage (buckets round-tripping through a real Postgres) needs a CI/local Postgres with `product/deploy/sql/001_init.sql` applied — see `docs/tigerdata.md`.
+

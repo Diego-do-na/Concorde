@@ -56,17 +56,21 @@ SELECT add_continuous_aggregate_policy(
 );
 
 -- Readable helper view that expands stored percentile state into p50/p95/p99.
--- The helper below uses `approx_percentile(state, q)` which is commonly
--- available in Timescale toolkits; adapt if your service exposes a different name.
+-- timescaledb_toolkit's actual signature is
+-- approx_percentile(percentile double precision, sketch uddsketch) --
+-- percentile first, sketch second (verified against the real Tiger Data
+-- instance via `\df *approx_percentile*`, T049) -- NOT `(sketch, q)` as an
+-- earlier version of this file had it, which fails with "function
+-- approx_percentile(uddsketch, numeric) does not exist".
 CREATE OR REPLACE VIEW detection_stats_1m_readable AS
 SELECT
   bucket,
   events,
   synthetic_events,
   -- percentile_agg stored state -> approximate percentiles
-  approx_percentile(latency_pct, 0.50) AS p50_latency_ms,
-  approx_percentile(latency_pct, 0.95) AS p95_latency_ms,
-  approx_percentile(latency_pct, 0.99) AS p99_latency_ms,
+  approx_percentile(0.50, latency_pct) AS p50_latency_ms,
+  approx_percentile(0.95, latency_pct) AS p95_latency_ms,
+  approx_percentile(0.99, latency_pct) AS p99_latency_ms,
   avg_confidence
 FROM detection_stats_1m;
 
