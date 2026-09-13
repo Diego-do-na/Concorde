@@ -1937,11 +1937,11 @@ tasks:
   depends_on:
   - T022
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T047
   claimed_at: '2026-09-13T00:56:19+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:59:33+00:00'
 - id: T048
   title: '[Paul] Non-blocking Tiger Data event writer (sqlx, bounded channel, drop-on-backpressure)'
   description: '(a) BUILD — product/api/src/storage/: `EventWriter::spawn(TIGERDATA_URL)`
