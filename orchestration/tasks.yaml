@@ -2264,10 +2264,10 @@ tasks:
   depends_on:
   - T040
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T058
+  claimed_at: '2026-09-13T01:24:14+00:00'
   done_at: null
 - id: T059
   title: '[Diego] Run the real train→calibrate→export→deploy chain end-to-end (unblock
