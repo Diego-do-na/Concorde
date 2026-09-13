@@ -1862,10 +1862,10 @@ tasks:
   - T044
   - T057
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-claude
+  branch: task/T045
+  claimed_at: '2026-09-13T06:00:32+00:00'
   done_at: null
 - id: T046
   title: '[Néstor] Executive view: aggregate metrics + business case with visible
