@@ -13,9 +13,9 @@ use axum::Router;
 use crate::state::SharedState;
 
 /// Assemble the HTTP router. Each route is mounted here as its handler
-/// lands — `/health` (T001) and `/detect` (T008) today; the remaining
-/// modules above are still placeholders and stay unmounted until their own
-/// task fills them in.
+/// lands — `/health` (T001), `/detect` (T008) and `/analyze` (T028) today;
+/// the remaining modules above are still placeholders and stay unmounted
+/// until their own task fills them in.
 ///
 /// `DefaultBodyLimit::disable()` turns off axum's own 2 MB request-body cap
 /// (which otherwise answers oversized bodies with a bare HTTP 413 before a
@@ -31,5 +31,6 @@ pub fn router() -> Router<SharedState> {
         .route("/metrics", get(metrics::metrics))
         .route("/version", get(version::version))
         .route("/detect", post(detect::detect))
+        .route("/analyze", post(analyze::analyze))
         .layer(DefaultBodyLimit::disable())
 }
