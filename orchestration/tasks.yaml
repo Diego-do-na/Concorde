@@ -665,11 +665,11 @@ tasks:
   - T011
   - T013
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T014
   claimed_at: '2026-09-12T23:55:05+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:00:52+00:00'
 - id: T015
   title: '[Diego] Golden-vector parity test Python ↔ Rust on 10 fixed calls (FR-005)'
   description: '(a) BUILD — product/ml/validation/parity/make_golden.py: picks 10
