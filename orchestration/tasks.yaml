@@ -1661,11 +1661,11 @@ tasks:
   depends_on:
   - T022
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T042
   claimed_at: '2026-09-13T00:51:52+00:00'
-  done_at: null
+  done_at: '2026-09-13T03:13:25+00:00'
 - id: T043
   title: '[Diego] Probe-turn detector: log-mel + subsequence-DTW template bank, validated
     on the whole dataset, exported for Rust'
