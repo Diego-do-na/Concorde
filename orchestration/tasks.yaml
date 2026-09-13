@@ -2037,10 +2037,10 @@ tasks:
   depends_on:
   - T025
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T050
+  claimed_at: '2026-09-13T00:58:20+00:00'
   done_at: null
 - id: T051
   title: '[Néstor] Human red-team clips (in-house recordings) + robustness report
