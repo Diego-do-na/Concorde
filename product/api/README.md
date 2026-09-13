@@ -166,3 +166,28 @@ Golden-vector parity (FR-005, T015)
 - Fixtures are regenerated on the Python side by `python product/ml/validation/parity/make_golden.py` (see `product/ml/README.md`'s parity section) — this Rust test only consumes them, it never regenerates them.
 - Any mismatch is fixed by aligning the Rust extractor to Python, unless Python itself is found to violate §9 — in that case stop and get Diego's sign-off (AGENTS.md) rather than "fixing" the Python side unilaterally.
 
+Additional HTTP routes
+- `GET /metrics` — returns a JSON object with process-wide counters and per-route latency percentiles (p50/p95/p99). If the request `Accept` header contains `text/plain` the route returns a tiny Prometheus-like exposition instead. Example JSON:
+
+```json
+{
+  "requests": 123,
+  "fallbacks": 2,
+  "routes": {
+    "detect": { "count": 120, "p50_ms": 10.5, "p95_ms": 40.2, "p99_ms": 90.1 }
+  }
+}
+```
+
+- `GET /version` — returns build information:
+
+```json
+{
+  "git_sha": "abcdef",
+  "build_time": "2026-09-12T00:00:00Z",
+  "rustc": "1.70.0",
+  "model_version": "v0.1.0",
+  "feature_contract": "fc-1"
+}
+```
+

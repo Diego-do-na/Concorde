@@ -28,6 +28,8 @@ use crate::state::SharedState;
 pub fn router() -> Router<SharedState> {
     Router::new()
         .route("/health", get(health::health))
+        .route("/metrics", get(metrics::metrics))
+        .route("/version", get(version::version))
         .route("/detect", post(detect::detect))
         .layer(DefaultBodyLimit::disable())
 }
