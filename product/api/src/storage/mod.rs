@@ -300,6 +300,28 @@ async fn ensure_schema(pool: &sqlx::Pool<Postgres>) -> Result<(), sqlx::Error> {
     )
     .execute(pool)
     .await?;
+    // The production table may have been created by deploy/sql/001_init.sql
+    // (T047) instead of the CREATE above. That schema has no `call_id`, `id`
+    // or `created_at`, and has NOT NULL columns without defaults (`ts`,
+    // `semantic_available`, `acoustic_available`, `request_id`) that the
+    // INSERT below does not provide -- every insert would fail and storage
+    // would sit in `degraded` forever. Reconcile idempotently, whichever
+    // script created the table first. Every statement is a no-op when the
+    // column already matches, so this is safe to run on every boot.
+    for stmt in [
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS id BIGSERIAL",
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS call_id TEXT",
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS ts TIMESTAMPTZ NOT NULL DEFAULT now()",
+        "ALTER TABLE detection_events ALTER COLUMN ts SET DEFAULT now()",
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS semantic_available BOOLEAN NOT NULL DEFAULT false",
+        "ALTER TABLE detection_events ALTER COLUMN semantic_available SET DEFAULT false",
+        "ALTER TABLE detection_events ADD COLUMN IF NOT EXISTS acoustic_available BOOLEAN NOT NULL DEFAULT false",
+        "ALTER TABLE detection_events ALTER COLUMN acoustic_available SET DEFAULT false",
+        "ALTER TABLE detection_events ALTER COLUMN request_id DROP NOT NULL",
+    ] {
+        sqlx::query(stmt).execute(pool).await?;
+    }
     Ok(())
 }
 
