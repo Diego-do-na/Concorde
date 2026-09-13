@@ -1747,11 +1747,11 @@ tasks:
   - T042
   - T043
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T044
   claimed_at: '2026-09-13T04:27:36+00:00'
-  done_at: null
+  done_at: '2026-09-13T06:00:19+00:00'
 - id: T057
   title: '[Paul] Server-side ASR benchmark gate: measure whisper.cpp on the real Vultr
     CPU before any Rust semantic work'
