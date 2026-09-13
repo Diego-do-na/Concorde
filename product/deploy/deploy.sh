@@ -147,6 +147,20 @@ chmod 600 "$INSTALL_DIR/.env"
 
 echo "Updated GIT_SHA in $INSTALL_DIR/.env: $GIT_SHA"
 
+# ---- Validate required environment keys (fail fast if missing) ----
+required_keys=( "CONCORDE_MODEL_PATH" "CONCORDE_FEATURE_CONTRACT" "CONCORDE_SEMANTIC_ENABLED" )
+missing=0
+for k in "${required_keys[@]}"; do
+	if ! grep -q "^${k}=" "$INSTALL_DIR/.env"; then
+		echo "ERROR: Required env var ${k} missing from $INSTALL_DIR/.env"
+		missing=1
+	fi
+done
+if [ "$missing" -eq 1 ]; then
+	echo "Please populate $INSTALL_DIR/.env with the required variables before restarting the service."
+	exit 1
+fi
+
 # ---- Restart systemd service ----
 systemctl daemon-reload
 systemctl restart concorde-api
