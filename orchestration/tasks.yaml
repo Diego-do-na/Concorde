@@ -2137,10 +2137,10 @@ tasks:
   - T045
   - T051
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: paul-cursor-agent
+  branch: task/T053
+  claimed_at: '2026-09-13T07:27:59+00:00'
   done_at: null
 - id: T055
   title: '[All] Pre-judging checklist run: external verification, fault suite vs production,
