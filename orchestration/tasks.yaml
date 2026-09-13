@@ -1937,10 +1937,10 @@ tasks:
   depends_on:
   - T022
   suggested_model: haiku
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T047
+  claimed_at: '2026-09-13T00:56:19+00:00'
   done_at: null
 - id: T048
   title: '[Paul] Non-blocking Tiger Data event writer (sqlx, bounded channel, drop-on-backpressure)'
