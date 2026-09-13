@@ -1,3 +1,178 @@
+# CONCORDE — Judge-facing README
+
+This repository implements CONCORDE: a behavioral/conversational detector of
+synthetic voices for Altur (HackMTY 2026). Read this file first.
+
+## Thesis (what we built)
+- Primary signal: conversational dynamics across both audio channels (caller
+  and agent). We do *not* rely on a deep acoustic net because acoustic
+  classifiers overfit small, TTS-specific artifacts and fail to generalize to
+  new engines. Low-dimensional, turn-shaped behavioral features (F-01…F-22,
+  frozen contract `fc-1`) capture structural recovery and turn-taking patterns
+  that generalise to unseen TTS engines.
+- Practical consequence: the server runs its own VAD at inference time (the
+  repository's `turns/<id>.json` files exist only in the practice dataset).
+
+## Architecture (high level)
+- Rust + Axum HTTP service (`product/api`) handles parsing, WAV decode, VAD,
+  fc-1 feature extraction, ONNX inference (ORT), Platt calibration, and the
+  graded `/detect` response.
+- Offline ML pipeline (`product/ml`) prepares training tables from the same VAD
+  the server uses, trains LightGBM, calibrates, and exports `artifacts/model.onnx`.
+- Console (`product/console`) is a React dashboard that calls `/analyze` for
+  explainability; `/detect` remains the only scored artifact.
+
+Architecture flow (text):
+
+request bytes -> http parse -> decode WAV -> VAD (own) -> features (fc-1) -> ONNX inference + Platt -> verdict
+
+## API contract (graded)
+- Canonical request JSON (what Altur's judge client sends exactly):
+
+```json
+{"call_id": "...", "audio_base64": "<base64 of the complete WAV file bytes>", "sample_rate": 8000, "channels": 2}
+```
+
+- Fallback shapes tolerated (robust parser): JSON with keys `audio|wav|data|file|clip|content`, raw base64 body, raw WAV bytes, or multipart file. The parser accepts a `data:audio/wav;base64,` prefix and variably padded base64.
+
+- Response: Exactly two keys, HTTP 200 always:
+
+```json
+{"is_synthetic": <bool>, "confidence": <float in [0,1]>}
+```
+
+- On any parse error, timeout, or internal failure the server returns the fallback
+  verdict `{"is_synthetic": false, "confidence": 0.50}` (HTTP 200) and logs the
+  incident. `CONCORDE_STRICT=1` is a dev switch that surfaces errors instead.
+
+- Judge URL: https://getconcorde.tech/detect
+  - Emergency fallback only: http://216.238.90.138/detect
+  - See `product/deploy/DOMAIN.md` and `product/deploy/DEPLOY_LOG.md`.
+
+## Feature contract (fc-1)
+fc-1 is frozen. The exported ONNX model and the Rust extractor expect the exact
+name/order below (23 floats; F-21 is stored as two values: mean & CV).
+
+| ID | Feature |
+|---:|---|
+| F-01 | `resp_latency_mean` |
+| F-02 | `resp_latency_median` |
+| F-03 | `resp_latency_std` |
+| F-04 | `resp_latency_cv` |
+| F-05 | `latency_monotony_index` |
+| F-06 | `resp_latency_min` |
+| F-07 | `overlap_count` |
+| F-08 | `overlap_rate_per_min` |
+| F-09 | `overlap_total_dur` |
+| F-10 | `caller_bargein_count` |
+| F-11 | `recovery_delay_mean` |
+| F-12 | `recovery_delay_cv` |
+| F-13 | `recovery_abort_ratio` |
+| F-14 | `caller_turn_dur_mean` |
+| F-15 | `caller_turn_dur_std` |
+| F-16 | `caller_turn_dur_cv` |
+| F-17 | `short_turn_ratio` |
+| F-18 | `fragmentation_rate` |
+| F-19 | `caller_speech_ratio` |
+| F-20 | `speech_balance` |
+| F-21a | `silence_break_delay_mean` |
+| F-21b | `silence_break_delay_cv` |
+| F-22 | `turn_count_caller` |
+
+Definitions, degenerate rules, and interpretation notes are in
+`product/ml/README.md` (the extractor defaults empty-set statistics to `0.0` and
+defines exact thresholding for F-05/F-12).
+
+Operationalisation note (F-05 / F-12)
+- F-05 (`latency_monotony_index`): fraction of response latencies within ±0.15s
+  of the median (consistency signal). Higher → more machine-like consistency.
+- F-12 (`recovery_delay_cv`): CV of recovery delays after overlap events. Low CV
+  indicates consistent, machine-like recovery; both features contributed to the
+  model's top explanatory factors in training.
+
+## Measured results (shipped model)
+All numbers are copied from the canonical sources in this repo.
+
+- Training / validation report (`product/ml/train/REPORT.md`): shipped
+  LightGBM `model_lgbm.txt` (git_sha `5d539a8f32752f2d6892b01742a89e4f108f54b8`, seed `20260912`), scored on `val` (n=71):
+  - Balanced accuracy (val, shipped threshold): 0.8466
+  - ROC-AUC (val): 0.9436
+  - Brier (after calibration): 0.0936
+  - EER (val): 0.1129
+  - Confusion matrix (val): TP=30 FN=4 / FP=7 TN=30
+  - Error rate by duration bands: [60–120)s: 0.4444 (n=9), [120–180)s: 0.1176 (n=51), [180–280)s: 0.0909 (n=11)
+
+- Deployment / real-checks (`product/deploy/DEPLOY_LOG.md`, T025 & T024):
+  - Early public run (pre-fix): balanced_accuracy 0.500 (calls:71, errors:0)
+  - Final public deploy (concorde-b-2, post export fix):
+    - balanced_accuracy: 0.864
+    - auc: 0.944
+    - tpr_synthetic: 0.971
+    - tnr_human: 0.757
+    - accuracy: 0.859
+    - brier: 0.103
+    - mean latency (client): ~0.475 s; max latency: 0.589 s
+
+## Check runs & verification artifacts
+- VAD agreement (FR-004): `product/ml/validation/vad_agreement/REPORT.md`
+  - Calls evaluated: 353
+  - Per-channel median F1: caller 0.873, agent 0.861 — GATE: PASS
+- Golden-vector parity (FR-005): `product/ml/validation/parity/REPORT.md` — PASS
+  - Max abs error per feature all ≪ 1e-6 (machine-epsilon noise only)
+- Latency percentiles (real deployment): `docs/latency-report.md`
+  - server-side p50=475 ms, p95=568 ms, p99=585 ms
+- Load / soak: `docs/load-report.md` — NOT YET RUN (T040 blocked on real model; TBD)
+
+## Payload size & limits
+- Default server limit: `CONCORDE_MAX_BODY_BYTES = 16_777_216` (16 MB) (`product/api/README.md`).
+  Rationale: judge posts whole WAV as base64 inside JSON; measured medians ~6.2 MB and max ~11.7 MB — 16 MB gives margin.
+
+## How to reproduce numbers
+1. Set up dataset: ensure `CONCORDE_DATASET_DIR` points to the practice dataset (manifest + audio + turns). Manifest sha256 recorded: `4fa5ac3f25f2bc1fbff9a06a89f621fcca30db5f1443bbd164368193f1d7c544`.
+2. Offline: `cd product/ml && python -m train.build_dataset && python -m train.train && python -m train.calibrate && python -m export.export_onnx`
+   - The shipped training run recorded: git_sha `5d539a8f32752f2d6892b01742a89e4f108f54b8`, seed `20260912`.
+3. Deploy: follow `product/deploy/DEPLOY_LOG.md` and `product/deploy/README.md` to place `artifacts/model.onnx` on the server and start the service.
+4. Verify via Altur's client:
+   - `python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url https://getconcorde.tech/detect --split val --n 0 --out val_check_public.json`
+5. To reproduce every number: use the same git SHA, seed, and manifest SHA256 above (NFR-009).
+
+## Dataset & privacy compliance
+- No dataset files or WAVs are committed to this repo (NFR-011). `audio/`, `turns/`, and any `ml/data/` outputs are gitignored.
+- No speaker identification functionality is implemented or stored. We do not attempt to infer or store speaker identity.
+
+## Deviation from ADR-012 (speaker-grouped CV)
+- The dataset's `manifest.csv` contains no speaker identifier column and the dataset terms forbid attempting to identify speakers. Therefore we did **not** implement speaker-grouped CV inside `train`. Instead:
+  - Training used stratified K-fold by `anon_id` inside `train` (documented in `product/ml/README.md`).
+  - `val` remains the only speaker-disjoint measurement and was used only for final metrics and calibration.
+
+## Improvement docs (shipped)
+Only improvement tasks marked `status: done` in `orchestration/tasks.yaml` are included here.
+- ASR server benchmark (T057): `docs/asr-server-benchmark.md` — server-side whisper.cpp measurements and decision rule (model choice, vCPU).
+- TigerData schema & SQL (T047): `docs/tigerdata.md` — schema, hypertable, continuous-aggregate, and how to load events.
+- Escalation protocol (T052): `docs/escalation-protocol.md` — operational states and handoff rules.
+
+Not shipped (improvement work pending)
+- `docs/semantic-layer.md` (local semantic fusion / F-23) — pending: T042/T043/T044/T045
+- `docs/robustness.md` (red-team / ElevenLabs evaluation) — pending
+- Load/soak results in `docs/load-report.md` — pending
+
+## Known limitations
+- See `docs/pre-judging-checklist.md` for the judge-focused runbook and limitations recorded during the final checklist run (T055).
+
+## Verification & sign-off (pre-freeze)
+- Verification checklist:
+  - Every number in this README should match its source file. (Planned helper: `product/scripts/check_readme_numbers.py`.)
+  - All links must resolve from a freshly cloned worktree.
+  - Three-person sign-off required before the freeze deadline.
+
+Signatures:
+- Paul (owner): __________________  — time: __________________
+- Diego (model lead): ______________  — time: __________________
+- Néstor (console/ops): ____________  — time: __________________
+
+---
+This README is authoritative for judges. For developer-level details see the per-component READMEs under `product/`.
+
 # CONCORDE — Synthetic Voice Detection System
 
 **Status**: Production deployment active at https://getconcorde.tech  
@@ -134,3 +309,10 @@ See `product/deploy/RUNBOOK.md` for:
 - **Runbook**: `product/deploy/RUNBOOK.md` (emergency procedures, §18.3)
 - **Escalation Protocol**: `docs/escalation-protocol.md` (Green/Review/Transfer)
 - **Console Design**: `docs/design-reference.html` (interactive design system)
+
+---
+⚠️ **KNOWN ISSUE — PENDING AUDIT**: This file currently contains two
+concatenated README drafts with contradictory numbers (accuracy 0.8466
+vs 0.864; latency mean/max vs p95/p99) and possibly stale claims about
+TigerData/semantic layer status. Needs reconciliation against source
+reports before judging. — flagged 2026-09-13

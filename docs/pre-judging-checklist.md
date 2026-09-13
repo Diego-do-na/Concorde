@@ -190,6 +190,12 @@ Each should be ~15 min; save as `docs/walkthrough-{1,2,3}-[date].mov`
 
 ---
 
+## Known Issues Pending Audit
+
+☐ README raíz auditado y reconciliado (Fable 5.1) — cifras verificadas contra REPORT.md/DEPLOY_LOG.md, sin contenido duplicado
+
+---
+
 ## Sign-Off
 
 | Role | Name | Sign-Off | Date |
