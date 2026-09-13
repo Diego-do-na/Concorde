@@ -25,6 +25,8 @@ pub struct AppState {
     /// Metrics registry (process-wide); initialized once and used by
     /// pipeline/routes to record and expose metrics.
     pub metrics: crate::metrics::Metrics,
+    /// Live feed for recent verdicts and websocket subscriptions.
+    pub feed: std::sync::Arc<crate::feed::Feed>,
 }
 
 impl AppState {
@@ -41,6 +43,7 @@ impl AppState {
             model,
             deps: Arc::new(Mutex::new(HashMap::new())),
             metrics: crate::metrics::GLOBAL_METRICS.clone(),
+            feed: crate::feed::Feed::new(500, 50, 32),
         }
     }
 

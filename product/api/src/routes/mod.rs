@@ -32,5 +32,8 @@ pub fn router() -> Router<SharedState> {
         .route("/version", get(version::version))
         .route("/detect", post(detect::detect))
         .route("/analyze", post(analyze::analyze))
+        .route("/feed/recent", get(feed::recent))
+        .route("/feed/analysis/:id", get(feed::analysis_by_id))
+        .route("/ws", get(feed::ws))
         .layer(DefaultBodyLimit::disable())
 }

@@ -43,6 +43,9 @@ pub async fn detect(
         log_detect(&request_id, call_id.as_deref(), byte_size, &analysis);
         // Record success metrics for this detect call.
         state.metrics.record("detect", "ok", analysis.timings_ms.total, false);
+        // Publish a compact feed event (no audio or features) and retain
+        // the full analysis keyed by id for a short window.
+        let _ = state.feed.push(call_id.clone(), &analysis);
 
         Ok(DetectResponse::new(analysis.verdict.is_synthetic, analysis.verdict.confidence))
     })
