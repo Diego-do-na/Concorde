@@ -851,11 +851,11 @@ tasks:
   depends_on:
   - T018
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T019
   claimed_at: '2026-09-13T00:24:26+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:51:49+00:00'
 - id: T020
   title: '[Paul] ort integration: load ONNX + meta at boot, contract check, Platt
     + asserted-class confidence'
