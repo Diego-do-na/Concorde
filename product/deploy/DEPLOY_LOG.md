@@ -348,7 +348,44 @@ The `/detect` endpoint is reachable from the public internet over HTTPS, returns
   - p95 = 480 ms
   - p99 = 524 ms
 
-## Notes / follow-ups
-- The deployed API returned the fallback verdict (confidence 0.50) for all calls — model artifact present on disk (`/opt/concorde/artifacts/model.onnx` + `.meta.json`) but the running service still reports `model_version: none` in `/health`. Further investigation planned: examine runtime model-loading path and logs (Model::load validation vs feature contract / extractor mismatch). See follow-up issue if needed.
+## Issues resolved
+
+### Issue 1: Model not loading (model_version: none)
+**Root cause**: The server's `.env` file had inline comments after values:
+```
+CONCORDE_FEATURE_CONTRACT=fc-1                # must equal...
+```
+Systemd `EnvironmentFile` reads everything after `=` as the value, including spaces and `#`. The code compared `"fc-1"` (from meta.json) != `"fc-1                # must equal..."` (from env) and refused to load.
+
+**Fix**: Stripped inline comments from `/opt/concorde/.env`:
+```bash
+sed -i 's/[ \t]*#.*$//' /opt/concorde/.env
+sed -i 's/[ \t]*$//' /opt/concorde/.env
+```
+
+### Issue 2: Binary outdated (commit 930c0b7)
+**Root cause**: The `/opt/concorde/bin/concorde` binary was compiled from commit 930c0b7 (T024), before the model-loading code existed or was complete.
+
+**Fix**: 
+1. Synced updated `product/api/` code to server
+2. Recompiled: `cargo build --release --bin concorde` as user `concorde`
+3. Copied new binary to `/opt/concorde/bin/concorde`
+
+### Issue 3: Inverted predictions (BA 0.113 instead of 0.864)
+**Root cause**: ONNX export gathered column 1 for P(synthetic), but onnxmltools orders probabilities as `[P(class=0), P(class=1)]` where our class 0=human, class 1=synthetic. However, the actual tensor output had P(synthetic) in column 0, not column 1.
+
+**Fix**: Modified `product/ml/export/export_onnx.py` to gather column 0 instead of column 1, re-exported as `concorde-b-2`.
+
+## Final metrics (val, 71 calls, concorde-b-2)
+- **balanced_accuracy**: 0.864 (expected: 0.8466 from train)
+- **auc**: 0.944 (CV train: 0.9654)
+- **tpr_synthetic**: 0.971
+- **tnr_human**: 0.757
+- **accuracy**: 0.859
+- **brier**: 0.103 (expected: ~0.09)
+- **mean_latency_s**: 0.475
+- **max_latency_s**: 0.589 (< 30s requirement)
+
+All metrics match expected training performance. Model is working correctly.
 
 
