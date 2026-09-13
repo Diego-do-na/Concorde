@@ -1968,11 +1968,11 @@ tasks:
   - T047
   - T045
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T048
   claimed_at: '2026-09-13T06:57:40+00:00'
-  done_at: null
+  done_at: '2026-09-13T07:07:10+00:00'
 - id: T049
   title: '[Paul] GET /history from continuous aggregates + val replay → historical
     chart data (FR-015)'
