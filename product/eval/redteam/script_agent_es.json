@@ -1,0 +1,68 @@
+{
+  "_comment": "Agent-side call script for the red-team clip assembler (T050/T051). Consumed by assemble_call.py, which pairs each turn's agent_text/caller_reply_text with pre-synthesized (or recorded) WAV clips named agent_<id>.wav / caller_<id>.wav in --clips-dir. Follows the dataset's typical banking customer-service flow (identity check -> reason for call -> verification detail -> account/product question -> explanation -> resolution -> close). No dataset audio or text is reused here — this script is original.",
+  "turns": [
+    {
+      "id": 1,
+      "type": "greeting",
+      "agent_text": "Gracias por llamar a su banco, habla Andrea. Para su seguridad, ¿me puede confirmar su nombre completo y fecha de nacimiento?",
+      "caller_reply_text": "Claro, soy Marco Delgado Rivas, nací el 14 de marzo de 1990."
+    },
+    {
+      "id": 2,
+      "type": "reason_for_call",
+      "agent_text": "Perfecto, Marco, gracias. ¿Cuál es el motivo de su llamada el día de hoy?",
+      "caller_reply_text": "Intenté hacer una compra esta mañana y mi tarjeta fue rechazada, no entiendo por qué."
+    },
+    {
+      "id": 3,
+      "type": "repeat_back_request",
+      "agent_text": "Entiendo la molestia. Para localizar la cuenta, ¿me puede repetir los últimos cuatro dígitos de su tarjeta, por favor, para confirmarlos?",
+      "caller_reply_text": "Sí, son ocho, dos, cero, cinco."
+    },
+    {
+      "id": 4,
+      "type": "nonexistent_item_question",
+      "agent_text": "Gracias. Veo aquí una nota sobre el programa 'Estrella Dorada' de cashback duplicado. ¿Usted se inscribió a ese programa?",
+      "caller_reply_text": "¿Estrella Dorada? No, nunca había escuchado ese nombre, no sé de qué me habla."
+    },
+    {
+      "id": 5,
+      "type": "explanation_interrupted",
+      "agent_text": "No se preocupe, no aparece nada activo en su cuenta. Ahora, sobre el rechazo de la tarjeta, esto pudo deberse a que el sistema detectó un intento de compra fuera de su ciudad habitual, y por política interna nosotros",
+      "caller_reply_text": "Perdón que lo interrumpa, pero yo sí estaba en mi ciudad, hice la compra desde mi casa.",
+      "expect_interruption": true,
+      "interrupt_offset_s": 3.4
+    },
+    {
+      "id": 6,
+      "type": "explanation_continued",
+      "agent_text": "Entiendo, gracias por aclararlo. Voy a levantar el bloqueo temporal y dejar una nota para que no se repita.",
+      "caller_reply_text": "Muy bien, se lo agradezco mucho."
+    },
+    {
+      "id": 7,
+      "type": "dispute_question",
+      "agent_text": "¿Desea que además abra una disputa formal por el cargo rechazado, o solo quiere que quede liberada la tarjeta?",
+      "caller_reply_text": "Con que quede liberada es suficiente, no hubo ningún cargo indebido."
+    },
+    {
+      "id": 8,
+      "type": "hold_with_silence",
+      "agent_text": "Perfecto, deme un momento mientras confirmo el estado en el sistema.",
+      "caller_reply_text": null,
+      "caller_silence_s": 3.0
+    },
+    {
+      "id": 9,
+      "type": "resolution",
+      "agent_text": "Listo, ya quedó liberada la tarjeta y puede usarla de inmediato. Le recomiendo esperar unos cinco minutos antes de intentar la compra de nuevo.",
+      "caller_reply_text": "Perfecto, muchas gracias, lo voy a intentar en un momento."
+    },
+    {
+      "id": 10,
+      "type": "closing",
+      "agent_text": "Con gusto, Marco. ¿Hay algo más en lo que le pueda ayudar el día de hoy?",
+      "caller_reply_text": "No, eso es todo. Muchas gracias por su ayuda, que tenga buen día."
+    }
+  ]
+}
