@@ -732,11 +732,11 @@ tasks:
   - T011
   - T013
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: NC-EC-claude
   branch: task/T016
   claimed_at: '2026-09-12T23:55:34+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:05:17+00:00'
 - id: T017
   title: '[Diego] LightGBM training with CV inside train only, class weights, seed
     + reproducibility record'
