@@ -1968,10 +1968,10 @@ tasks:
   - T047
   - T045
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T048
+  claimed_at: '2026-09-13T06:57:40+00:00'
   done_at: null
 - id: T049
   title: '[Paul] GET /history from continuous aggregates + val replay → historical
