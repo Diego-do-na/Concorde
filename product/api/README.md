@@ -166,6 +166,42 @@ Golden-vector parity (FR-005, T015)
 - Fixtures are regenerated on the Python side by `python product/ml/validation/parity/make_golden.py` (see `product/ml/README.md`'s parity section) — this Rust test only consumes them, it never regenerates them.
 - Any mismatch is fixed by aligning the Rust extractor to Python, unless Python itself is found to violate §9 — in that case stop and get Diego's sign-off (AGENTS.md) rather than "fixing" the Python side unilaterally.
 
+`POST /analyze` — internal superset payload (§8.2, FR-009, ADR-013, T028)
+- Not the scored contract — `/detect` stays exactly `{"is_synthetic": <bool>, "confidence": <float>}`, nothing more, always HTTP 200. `/analyze` exists only for `console/`'s dashboard: it shares the same request parser and the same `pipeline::analyze_bytes` call as `/detect`, then builds the rich payload below in `analysis::build` (`src/analysis/mod.rs`). A failure here (bad input, no model, a timeline re-score error, a panic, a timeout) returns HTTP 200 with `{"error": "<reason>"}` instead of `/detect`'s fallback verdict — this route isn't graded, so there's no fallback-verdict contract to preserve, only "never 5xx, never hang".
+- Request shapes: identical to `/detect` (`http::parse::extract_audio`, FR-003 — canonical `audio_base64` JSON, the other JSON key aliases, raw binary WAV, raw base64, multipart).
+- Response body (`src/analysis/analyze.schema.json` is the JSON Schema `tests/analyze_e2e.rs` validates against):
+
+  ```bash
+  curl -X POST http://127.0.0.1:8080/analyze --data-binary @call.wav
+  ```
+
+  ```json
+  {
+    "verdict":      {"is_synthetic": true, "confidence": 0.87, "threshold": 0.5},
+    "signals":      {"behavioral": 0.91, "semantic": null, "acoustic": null},
+    "degraded":     {"semantic_available": false, "acoustic_available": false},
+    "timeline":     [{"t": 10.6, "confidence": 0.63}, {"t": 21.2, "confidence": 0.71}, "...14 more...", {"t": 180.0, "confidence": 0.87}],
+    "turns":        {"caller": [[10.5, 20.16], "..."], "agent": [[0.3, 7.66], "..."]},
+    "events":       [{"type": "overlap", "t": 118.34, "duration": 0.42}, "..."],
+    "features":     {"resp_latency_cv": 0.11, "overlap_count": 3.0, "...": "...(23 total, fc-1 names)"},
+    "top_factors":  [{"feature": "resp_latency_cv", "value": 0.11, "direction": "synthetic", "weight": 0.41}, "...(up to 5, weights sum to 1)"],
+    "rationale":    "Response latency stayed within CV 0.11 across 12 agent turns (resp_latency_cv, synthetic signal, weight 41%). ...",
+    "timings_ms":   {"decode": 61.0, "vad": 240.0, "features": 88.0, "semantic": null, "inference": 7.0, "total": 396.0},
+    "meta":         {"model_version": "concorde-dummy-0", "git_sha": "unknown", "feature_contract": "fc-1", "duration_s": 180.0}
+  }
+  ```
+
+  On failure:
+
+  ```json
+  { "error": "WAV decode failed: not a valid WAV file" }
+  ```
+
+- `signals.behavioral` is the model's raw `p_synthetic` (pre-threshold probability); `verdict.confidence` is the calibrated, thresholded value `/detect` also reports. `signals.semantic`/`.acoustic` and `degraded.*_available` are hardcoded `null`/`false` until T038 (semantic) and T045 (acoustic) land — never imputed as if real (§7.2, "never emit an unmarked degradation").
+- `timeline` always has exactly 17 points: 16 evenly spaced truncation times over `(0, duration_s)` (features re-extracted and the model re-scored on the turns as they'd have looked had the call ended at each `t` — cheap tabular inference, no re-decode/re-VAD) plus a 17th point at `t = duration_s` whose `confidence` is `verdict.confidence` itself, not a redundant re-score.
+- `top_factors` ranks all 23 fc-1 features by `|feature_importance_i × z_i|` (`z_i` = the call's feature value normalized against the model sidecar's `train_feature_means`/`train_feature_stds`), keeps the top 5, and renormalizes `weight` so they always sum to 1 (including the all-zero-importance edge case, which splits weight evenly rather than dividing by zero). `direction` is `"synthetic"` when `direction_sign_i × z_i ≥ 0`, else `"human"`.
+- `rationale` is a deterministic template sentence per top-3 factor (`src/analysis/factors.rs` has one phrasing per fc-1 feature name), always naming its own raw feature identifier — e.g. `(resp_latency_cv, synthetic signal, weight 41%)` — so it's always traceable back to `top_factors`.
+
 Additional HTTP routes
 - `GET /metrics` — returns a JSON object with process-wide counters and per-route latency percentiles (p50/p95/p99). If the request `Accept` header contains `text/plain` the route returns a tiny Prometheus-like exposition instead. Example JSON:
 

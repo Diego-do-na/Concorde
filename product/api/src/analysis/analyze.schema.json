@@ -1,0 +1,123 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://concorde.hackmty26.dev/schemas/analyze.schema.json",
+  "title": "POST /analyze response (fc-1, ADR-013, FR-009)",
+  "description": "Superset payload for the dashboard. Not the scored contract -- see /detect for that.",
+  "type": "object",
+  "required": [
+    "verdict", "signals", "degraded", "timeline", "turns", "events",
+    "features", "top_factors", "rationale", "timings_ms", "meta"
+  ],
+  "additionalProperties": true,
+  "properties": {
+    "verdict": {
+      "type": "object",
+      "required": ["is_synthetic", "confidence", "threshold"],
+      "properties": {
+        "is_synthetic": { "type": "boolean" },
+        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
+        "threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "signals": {
+      "type": "object",
+      "required": ["behavioral", "semantic", "acoustic"],
+      "properties": {
+        "behavioral": { "type": "number", "minimum": 0, "maximum": 1 },
+        "semantic": { "type": ["number", "null"] },
+        "acoustic": { "type": ["number", "null"] }
+      }
+    },
+    "degraded": {
+      "type": "object",
+      "required": ["semantic_available", "acoustic_available"],
+      "properties": {
+        "semantic_available": { "type": "boolean" },
+        "acoustic_available": { "type": "boolean" }
+      }
+    },
+    "timeline": {
+      "type": "array",
+      "minItems": 17,
+      "maxItems": 17,
+      "items": {
+        "type": "object",
+        "required": ["t", "confidence"],
+        "properties": {
+          "t": { "type": "number", "minimum": 0 },
+          "confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "turns": {
+      "type": "object",
+      "required": ["caller", "agent"],
+      "properties": {
+        "caller": {
+          "type": "array",
+          "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } }
+        },
+        "agent": {
+          "type": "array",
+          "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } }
+        }
+      }
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type", "t", "duration"],
+        "properties": {
+          "type": { "type": "string", "enum": ["overlap", "interruption", "silence"] },
+          "t": { "type": "number", "minimum": 0 },
+          "duration": { "type": "number", "minimum": 0 }
+        }
+      }
+    },
+    "features": {
+      "type": "object",
+      "description": "Named fc-1 vector (F-01..F-22, F-21 split in two), one entry per feature.",
+      "minProperties": 23,
+      "maxProperties": 23,
+      "additionalProperties": { "type": "number" }
+    },
+    "top_factors": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "required": ["feature", "value", "direction", "weight"],
+        "properties": {
+          "feature": { "type": "string" },
+          "value": { "type": "number" },
+          "direction": { "type": "string", "enum": ["synthetic", "human"] },
+          "weight": { "type": "number", "minimum": 0, "maximum": 1 }
+        }
+      }
+    },
+    "rationale": { "type": "string", "minLength": 1 },
+    "timings_ms": {
+      "type": "object",
+      "required": ["decode", "vad", "features", "semantic", "inference", "total"],
+      "properties": {
+        "decode": { "type": "number", "minimum": 0 },
+        "vad": { "type": "number", "minimum": 0 },
+        "features": { "type": "number", "minimum": 0 },
+        "semantic": { "type": ["number", "null"] },
+        "inference": { "type": "number", "minimum": 0 },
+        "total": { "type": "number", "minimum": 0 }
+      }
+    },
+    "meta": {
+      "type": "object",
+      "required": ["model_version", "git_sha", "feature_contract", "duration_s"],
+      "properties": {
+        "model_version": { "type": "string" },
+        "git_sha": { "type": "string" },
+        "feature_contract": { "type": "string" },
+        "duration_s": { "type": "number", "minimum": 0 }
+      }
+    }
+  }
+}
