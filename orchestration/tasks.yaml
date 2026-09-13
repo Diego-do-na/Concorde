@@ -1469,11 +1469,11 @@ tasks:
   depends_on:
   - T036
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-cursor-agent
   branch: task/T037
   claimed_at: '2026-09-12T23:58:23+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:01:46+00:00'
 - id: T038
   title: '[Néstor+Paul] Console build served by Caddy, wired to the real backend,
     one val call navigable end-to-end (F3 exit)'
