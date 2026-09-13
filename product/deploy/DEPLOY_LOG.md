@@ -305,3 +305,35 @@ The `/detect` endpoint is reachable from the public internet over HTTPS, returns
 **Last Updated**: 2026-09-12 23:51:32 UTC  
 **Created by**: Claude Haiku 4.5 (T024)
 
+---
+
+# T025 — Real model deploy & latency measurement (template)
+
+**Task**: T025 — Deploy the real model (T022 export) and measure end-to-end latency.
+
+**Date**: DATE_GOES_HERE  
+**Deployed by**: Paul  
+**Commit**: COMMIT_SHA_GOES_HERE
+
+## Build / Install
+- Model artifact copied to `/opt/concorde/artifacts/model.onnx`
+- Ensure `/opt/concorde/.env` contains:
+  - `CONCORDE_MODEL_PATH=/opt/concorde/artifacts/model.onnx`
+  - `CONCORDE_FEATURE_CONTRACT=fc-1`
+  - `CONCORDE_SEMANTIC_ENABLED=false`
+  (these values are populated by the deploy operator; do NOT commit secrets)
+
+## Verification (primary)
+- From a laptop on mobile data:
+  python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url https://HOSTNAME/detect --split val --n 0 --out val_check_public.json
+  Expect: answered 71, errors 0, balanced_accuracy/auc/brier recorded, max_latency_s < 30
+
+## Server-side latency measurement
+- Run on the deploy operator laptop or on the server after copying `val_check_public.json`:
+  product/deploy/measure_latency.sh val_check_public.json
+- Target (NFR-001 internal): server-side p95 <= 3000 ms, p99 <= 5000 ms
+
+## Notes / follow-ups
+- If latency budget missed, record which stage missed the budget and open follow-up via `orchestration/scripts/add_task.py` — do NOT tune Rust here.
+- Record the actual percentiles and the exact commit SHA in this document under the dated entry above.
+
