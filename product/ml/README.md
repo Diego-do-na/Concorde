@@ -238,3 +238,43 @@ would itself be a form of speaker identification). The documented fallback
 for T016/T017: **stratified K-fold by `anon_id` inside `train`**; `val`
 remains the only speaker-disjoint measurement, and stays untouched outside
 final measurement/calibration either way.
+
+## ONNX export (T021, ADR-004, NFR-009)
+
+`export/export_onnx.py` is the last pipeline step, run after T016 (feature
+table), T017 (`model_lgbm.txt`) and T018 (`calibration.json`):
+
+```bash
+cd product/ml
+python -m export.export_onnx
+```
+
+Reads `ml/data/model_lgbm.txt`, `ml/data/calibration.json`,
+`ml/data/train_meta.json`; writes `artifacts/model.onnx` and
+`artifacts/model.onnx.meta.json` (schema: `product/api/README.md`'s
+"Model sidecar schema (T021)" section — the API's `Model::load` aborts
+startup on any mismatch, FR-006) and appends one line to
+`artifacts/CHANGELOG.md`.
+
+- **Graph shape.** `onnxmltools.convert_lightgbm(..., zipmap=False)`
+  emits `label` (int) and `probabilities` (shape `(N, 2)`) outputs;
+  neither is servable as-is. `convert_to_onnx()` appends a Gather+Squeeze
+  pair that slices out column 1 (`P(class=1)`, i.e. `is_synthetic`,
+  ADR-006) and replaces the graph's outputs with that single `(N,)` float
+  tensor — the `label` output is dropped entirely so nothing downstream
+  can read a hard class label where `Model::score` expects a probability.
+- **`model_version`** is `"concorde-b-<n>"`, one past the highest `<n>`
+  already recorded in `artifacts/CHANGELOG.md` (starts at 1).
+- **Reproducing a given version**: check out the `git_sha` recorded for it
+  in `artifacts/CHANGELOG.md`/the meta sidecar, get a dataset with the same
+  `manifest_sha256`, and re-run T016 → T017 (same `seed`) → T018 → T021 in
+  order — the whole chain is deterministic given the same inputs.
+- **Verification** (`export/tests/test_export_onnx.py`, run against a
+  synthetic LightGBM booster + fabricated sidecars so it needs no real
+  dataset): asserts onnxruntime's output equals `Booster.predict()` within
+  `1e-5` on 353 rows (the real dataset's row count), that the sidecar
+  matches the documented schema, that the graph exposes exactly one
+  non-`label` output, and that `model_version` bumps correctly from an
+  existing changelog. Re-run it against the real `ml/data/model_lgbm.txt`
+  once T016-T018 have produced one locally to get the equivalent guarantee
+  on the actual shipped model.
