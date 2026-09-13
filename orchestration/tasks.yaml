@@ -1217,11 +1217,11 @@ tasks:
   depends_on:
   - T028
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: paul-claude
   branch: task/T029
   claimed_at: '2026-09-13T01:13:57+00:00'
-  done_at: null
+  done_at: '2026-09-13T01:30:47+00:00'
 - id: T030
   title: '[Néstor] Live monitor view: dense verdict table + stats strip'
   description: '(a) BUILD — product/console/src/views/live/: stats strip (PROCESSED
