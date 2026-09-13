@@ -112,6 +112,31 @@ export async function getFeedAnalysis(id: string): Promise<Analysis | null> {
   return body ? AnalysisZ.parse(body) : null;
 }
 
+// /detect endpoint returns only the verdict object (two-key JSON).
+export async function detect(input: { audio_base64?: string } | File): Promise<{ is_synthetic: boolean; confidence: number }> {
+  if (input instanceof File) {
+    const form = new FormData();
+    form.append('file', input);
+    const res = await fetch(`${API_BASE}/detect`, { method: 'POST', body: form });
+    const body = await okJson(res);
+    if (!body || typeof body.is_synthetic !== 'boolean' || typeof body.confidence !== 'number') {
+      return { is_synthetic: false, confidence: 0.5 };
+    }
+    return { is_synthetic: body.is_synthetic, confidence: body.confidence };
+  } else {
+    const res = await fetch(`${API_BASE}/detect`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    const body = await okJson(res);
+    if (!body || typeof body.is_synthetic !== 'boolean' || typeof body.confidence !== 'number') {
+      return { is_synthetic: false, confidence: 0.5 };
+    }
+    return { is_synthetic: body.is_synthetic, confidence: body.confidence };
+  }
+}
+
 type AnalyzeInput = { audio_base64: string } | File;
 
 export async function analyze(input: AnalyzeInput): Promise<Analysis> {

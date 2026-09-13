@@ -1,3 +1,5 @@
+public/demo/*.wav
+
 node_modules
 dist
 .vite
