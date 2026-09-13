@@ -8,8 +8,8 @@
 .trace-lane-row {
   position: relative;
   height: 84px;
-  border-bottom: 1px solid oklch(0.25 0.015 252);
-  background: oklch(0.205 0.014 252);
+  border-bottom: 1px solid var(--line-inner-b);
+  background: var(--surface-plot);
 }
 
 .trace-lane-canvas {
@@ -28,12 +28,12 @@
   align-items: center;
   padding-left: 10px;
   box-sizing: border-box;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-size);
   letter-spacing: 0.06em;
-  color: oklch(0.6 0.012 252);
-  background: oklch(0.2 0.014 252);
-  border-right: 1px solid oklch(0.25 0.015 252);
+  color: var(--muted);
+  background: var(--surface-panel);
+  border-right: 1px solid var(--line-inner-b);
   pointer-events: none;
 }
 
@@ -41,11 +41,27 @@
   position: absolute;
   top: 6px;
   right: 6px;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-size);
   letter-spacing: 0.04em;
   padding: 2px 6px;
   border-radius: 2px;
-  background: oklch(0.28 0.016 252);
+  background: var(--surface-tooltip);
   pointer-events: none;
+}
+
+/* The trace lane when no timeline was retained. Hatched, like every other
+   absent signal in this console, so it is never mistaken for a flat curve. */
+.trace-lane-row.is-unavailable {
+  display: flex;
+  align-items: center;
+  background: var(--surface-plot);
+}
+.trace-unavailable-note {
+  margin-left: 96px;
+  padding-right: 16px;
+  max-width: 60ch;
+  font-size: var(--type-label-size);
+  line-height: 1.5;
+  color: var(--muted);
 }

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 import { setupServer } from 'msw/node';
+import { rest } from 'msw';
 import { handlers } from '../mocks/handlers';
 import { makeFixtures } from '../mocks/fixtures';
 import { AnalysisZ, analyze, getFeedRecent, Feed } from '../lib/api';
@@ -7,6 +8,7 @@ import { AnalysisZ, analyze, getFeedRecent, Feed } from '../lib/api';
 const server = setupServer(...handlers);
 
 beforeAll(() => server.listen());
+afterEach(() => server.resetHandlers());
 afterAll(() => server.close());
 
 describe('mocks & types', () => {
@@ -24,10 +26,35 @@ describe('mocks & types', () => {
   });
 
   it('analyze accepts multipart (File simulated)', async () => {
-    // In node tests we can't create File easily; simulate by constructing a Blob-like object
-    const file = new (global as any).File ? new File(['x'], 'a.wav', { type: 'audio/wav' }) : (new Blob(['x']) as any);
+    // `new (global as any).File ? … : …` parsed as `new (global.File)()` — a
+    // zero-argument File construction evaluated as the ternary *condition*,
+    // which throws before the branch is ever chosen. jsdom provides File, so
+    // test for it rather than constructing it to find out.
+    const file =
+      typeof File !== 'undefined'
+        ? new File(['x'], 'a.wav', { type: 'audio/wav' })
+        : (new Blob(['x']) as any);
     const res = await analyze(file as any);
     expect(res).toHaveProperty('id');
+  });
+
+  it('adopts the sent call_id when /analyze omits id, as the service does', async () => {
+    // Regression: analysis::AnalyzeResponse carries no `id`, so validating
+    // the body against the id-bearing schema threw on every real response
+    // and the demo view's "Open in detail" never enabled.
+    server.use(
+      rest.post('/analyze', async (_req, res, ctx) => {
+        const { id, ...withoutId } = makeFixtures()[0] as any;
+        return res(ctx.status(200), ctx.json(withoutId));
+      })
+    );
+    const res = await analyze({ audio_base64: 'abc' }, 'demo_cafebabe');
+    expect(res.id).toBe('demo_cafebabe');
+  });
+
+  it('surfaces the {"error": ...} envelope /analyze uses instead of a 5xx', async () => {
+    server.use(rest.post('/analyze', (_req, res, ctx) => res(ctx.status(200), ctx.json({ error: 'boom' }))));
+    await expect(analyze({ audio_base64: 'abc' })).rejects.toThrow('boom');
   });
 });
 

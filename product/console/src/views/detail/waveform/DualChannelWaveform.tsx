@@ -19,10 +19,19 @@ export type DualChannelWaveformProps = {
   analysis: Analysis
   /** T033 wires up here to keep its own playhead in sync with this panel's hover. */
   onScrub?: (state: ScrubState | null) => void
+  /**
+   * Extra lanes rendered between the channel lanes and the time axis — the
+   * confidence trace goes here. The axis belongs at the *bottom* of the
+   * whole plot, under every lane, and children is what lets a caller add a
+   * lane without the axis ending up in the middle of the stack. A child
+   * lane measures its own width, and since it sits inside this same
+   * full-width panel it resolves to the identical TimeScale.
+   */
+  children?: React.ReactNode
 }
 
 /** Dual-channel synchronized waveform: CH0 CALLER / CH1 AGENT lanes on one shared TimeScale. */
-export default function DualChannelWaveform({ analysis, onScrub }: DualChannelWaveformProps) {
+export default function DualChannelWaveform({ analysis, onScrub, children }: DualChannelWaveformProps) {
   const [containerRef, measuredWidth] = useElementWidth<HTMLDivElement>()
   const width = measuredWidth || FALLBACK_WIDTH
 
@@ -86,6 +95,7 @@ export default function DualChannelWaveform({ analysis, onScrub }: DualChannelWa
         />
         <div className="waveform-lane-label">CH1 AGENT</div>
       </div>
+      {children}
       <TimeAxis scale={scale} />
       {hover && <ScrubOverlay x={hover.x} t={hover.t} confidence={hoverConfidence} panelHeight={panelHeight} />}
     </div>

@@ -1,0 +1,91 @@
+/*
+ * Top contributing factors table (FR-009).
+ *
+ * The weight bar used to be painted with `linear-gradient(90deg,#4fb3ff,
+ * #3bff7a)` — two colours that appear nowhere else in the console, and a
+ * hue ramp that implied the bar's *left end* meant something different from
+ * its right. A weight is one scalar, so it gets one flat fill, tinted by the
+ * direction the factor pushes.
+ */
+
+.factors {
+  --factor-cols: minmax(180px, 1fr) 72px 120px minmax(120px, 200px);
+}
+
+.factors-head,
+.factor-row {
+  display: grid;
+  grid-template-columns: var(--factor-cols);
+  gap: 14px;
+  align-items: center;
+  padding: var(--cell-padding);
+}
+
+.factors-head {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+  border-bottom: 1px solid var(--line);
+}
+
+.factor-row {
+  padding-top: 9px;
+  padding-bottom: 9px;
+  border-bottom: 1px solid var(--row-divider);
+}
+
+.num { text-align: right; }
+
+.factor-name { min-width: 0; }
+.factor-name .key {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  color: var(--ink);
+}
+.factor-name .note {
+  margin-top: 2px;
+  font-size: var(--type-label-size);
+  color: var(--muted);
+}
+
+.factor-value {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+
+.factor-direction {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.factor-weight {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.factor-weight .bar-track { flex: 1 1 auto; }
+.factor-weight .weight-value {
+  flex: 0 0 auto;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-body-size);
+  color: var(--ink2);
+}
+
+.factors-empty {
+  padding: 18px 0;
+  max-width: 66ch;
+  font-size: var(--type-body-size);
+  line-height: var(--type-line-height);
+  color: var(--muted);
+}
+.factors-empty code {
+  font-family: var(--font-mono);
+  color: var(--ink2);
+}

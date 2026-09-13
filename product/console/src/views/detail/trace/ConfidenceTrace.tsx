@@ -30,11 +30,30 @@ export default function ConfidenceTrace({ analysis, scrub }: ConfidenceTraceProp
   );
 
   const points = useMemo(() => mapTimelinePoints(analysis.timeline, scale, TRACE_HEIGHT), [analysis.timeline, scale]);
+
+  // Only POST /analyze re-scores truncated prefixes; the retained analysis
+  // behind GET /feed/analysis/:id has no timeline at all. Drawing the empty
+  // plot anyway rendered the above/below-threshold washes with no curve,
+  // which reads as a flat, fully-confident trace — a claim the data does not
+  // make. Say it is absent instead.
+  const unavailable = points.length === 0;
   const thresholdY = yFor(analysis.verdict.threshold, TRACE_HEIGHT);
   const finalPoint = points.length > 0 ? points[points.length - 1] : null;
   const finalConfidence = finalPoint ? finalPoint.confidence : analysis.verdict.confidence;
 
   const scrubX = scrub ? scale.xFor(scrub.t) : null;
+
+  if (unavailable) {
+    return (
+      <div ref={containerRef} className="trace-lane-row is-unavailable" data-testid="trace-unavailable">
+        <div className="trace-lane-label">P(SYN) TRACE</div>
+        <div className="trace-unavailable-note">
+          Not computed for this call — the confidence trace comes from POST /analyze and is not
+          retained with the feed.
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div ref={containerRef} className="trace-lane-row">

@@ -10,7 +10,7 @@ describe("SignalBreakdown", () => {
 
     // ensure behavioural and acoustic have numeric values for the test
     a.signals.behavioral = { value: 0.23 };
-    a.signals.acoustic = { value: 0.78 };
+    a.signals.acoustic = { value: 0.78 } as typeof a.signals.acoustic;
     a.degraded = { semantic_available: false, acoustic_available: true };
 
     render(<SignalBreakdown analysis={a as any} />);

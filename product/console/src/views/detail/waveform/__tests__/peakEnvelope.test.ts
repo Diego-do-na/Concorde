@@ -16,7 +16,10 @@ describe('bucketCount', () => {
 
 describe('downsamplePeaks', () => {
   it('aggregates raw values into exactly `buckets` groups, normalized to [0,1]', () => {
-    const raw = Array.from({ length: 100 }, (_, i) => i)
+    // Envelope values arrive already in [0, 1] — api/src/analysis/waveform.rs
+    // divides by i16::MAX before bucketing. This fixture used to ramp 0..99,
+    // raw int16 magnitudes, which is not a shape the service ever sends.
+    const raw = Array.from({ length: 100 }, (_, i) => i / 100)
     const out = downsamplePeaks(raw, 10)
     expect(out).toHaveLength(10)
     for (const v of out) {
@@ -30,6 +33,13 @@ describe('downsamplePeaks', () => {
   it('normalizes against MAX_AMPLITUDE by default', () => {
     const out = downsamplePeaks([MAX_AMPLITUDE], 1)
     expect(out[0]).toBe(1)
+  })
+
+  it('treats full scale as 1.0, matching the service envelope contract', () => {
+    // Regression: MAX_AMPLITUDE was 32767, so a real 0.8-amplitude bucket
+    // normalised to 0.0000244 and every lane rendered flat.
+    expect(MAX_AMPLITUDE).toBe(1)
+    expect(downsamplePeaks([0.8], 1)[0]).toBeCloseTo(0.8, 5)
   })
 
   it('returns zero-filled buckets when values are empty, never blank', () => {

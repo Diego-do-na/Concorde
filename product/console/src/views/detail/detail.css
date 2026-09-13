@@ -1,0 +1,200 @@
+/*
+ * Call detail (View 2, §11 / FR-009 / FR-012).
+ *
+ * Three columns: the recent-calls rail, the evidence column, and the
+ * interpretation column. That split is the argument the view is making —
+ * left is "which call", centre is "what the audio did", right is "why the
+ * model said what it said". Putting the rationale next to the signals rather
+ * than under the factor table keeps the claim and its support on one screen.
+ *
+ * Each column scrolls on its own so a long event log never pushes the
+ * waveform off-screen.
+ */
+
+.detail {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr) 328px;
+  align-items: stretch;
+  /* viewport minus the sticky header (41px) and nav (37px) */
+  height: calc(100vh - 78px);
+  background: var(--surface-page);
+}
+
+.detail-col {
+  min-width: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* ── recent calls rail ────────────────────────────────────────────────── */
+
+.recent-rail {
+  background: var(--surface-panel-alt);
+  border-right: 1px solid var(--line);
+}
+
+.rail-head {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: 12px 12px 8px;
+  background: var(--surface-panel-alt);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.recent-row {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  padding: 8px 12px 8px 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--row-divider);
+  transition: background var(--t-fast) var(--ease);
+}
+.recent-row:hover { background: var(--surface-hover); }
+.recent-row.is-selected { background: var(--surface-hover); }
+.recent-row:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: -2px;
+}
+
+/* The verdict is carried by this bar's colour *and* by the word beneath the
+   id, so the rail stays readable without colour. */
+.recent-tone {
+  width: 3px;
+  flex: 0 0 auto;
+  border-radius: 0 var(--radius-bar) var(--radius-bar) 0;
+}
+
+.recent-body { min-width: 0; }
+
+.recent-id {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recent-sub {
+  margin-top: 2px;
+  font-size: var(--type-label-size);
+  letter-spacing: 0.04em;
+  color: var(--dim-label);
+}
+
+.rail-empty {
+  padding: 16px 12px;
+  font-size: var(--type-body-size);
+  color: var(--muted);
+}
+
+/* ── centre column ────────────────────────────────────────────────────── */
+
+.evidence {
+  background: var(--surface-panel);
+  border-right: 1px solid var(--line);
+  padding: 0 18px 28px;
+}
+
+.call-header {
+  display: flex;
+  align-items: flex-end;
+  gap: 28px;
+  flex-wrap: wrap;
+  padding: 16px 0 18px;
+}
+
+.call-header .field-label {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.call-header .field-value {
+  margin-top: 5px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-metric-mono);
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.call-header .call-id .field-value {
+  font-size: 22px;
+  letter-spacing: 0.01em;
+}
+
+
+
+/* Relative, because MarkerOverlay is an absolute layer pinned to this box. */
+.plot-panel {
+  position: relative;
+  background: var(--surface-plot);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+/* ── right rail ───────────────────────────────────────────────────────── */
+
+.interpretation {
+  background: var(--surface-panel-alt);
+  padding: 0 18px 28px;
+}
+
+.rail-section {
+  padding: 16px 0 0;
+}
+.rail-section + .rail-section {
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.rail-section-head {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+  margin-bottom: 10px;
+}
+
+.rationale {
+  font-size: var(--type-body-size);
+  line-height: var(--type-line-height);
+  color: var(--ink2);
+}
+
+
+/* ── loading / empty panels ───────────────────────────────────────────── */
+
+.detail-notice {
+  padding: 40px 0;
+  color: var(--muted);
+  max-width: 66ch;
+  line-height: var(--type-line-height);
+}
+.detail-notice .headline {
+  font-family: var(--font-mono);
+  font-size: var(--type-metric-mono);
+  color: var(--ink2);
+  margin-bottom: 8px;
+}
+
+@media (max-width: 1200px) {
+  .detail {
+    grid-template-columns: 200px minmax(0, 1fr);
+    height: auto;
+  }
+  .detail-col { overflow-y: visible; }
+  .interpretation {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+  }
+}

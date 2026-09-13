@@ -1,0 +1,55 @@
+/* Per-signal sub-scores — right rail, top panel. */
+
+.signal-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.signal-row { min-width: 0; }
+
+.signal-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 6px;
+}
+
+.signal-label {
+  font-size: var(--type-body-size);
+  font-weight: 500;
+  color: var(--ink);
+}
+
+.signal-score {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-body-size);
+  color: var(--ink);
+}
+
+/* DEGRADED is a word, in the review tone, next to a hatched track — three
+   signals that this row has no value, none of which is "a short bar". */
+.signal-degraded {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  color: var(--review-color);
+}
+
+.signal-row .bar-fill {
+  background: var(--ink2);
+}
+
+.signal-note {
+  margin-top: 6px;
+  font-size: var(--type-label-size);
+  color: var(--muted);
+}
+
+.signal-shed {
+  margin: 2px 0 0;
+  font-size: var(--type-label-size);
+  line-height: 1.5;
+  color: var(--muted);
+}

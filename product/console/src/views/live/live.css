@@ -1,0 +1,202 @@
+/*
+ * Live monitor (View 1, §11 / FR-012).
+ *
+ * Every value comes from a token in theme/global.css. The view previously
+ * carried its styling as inline objects with literal hex colours
+ * (`#3bff7a33`, `#0b0b0b`, `#fff`), which is why it was the one screen that
+ * did not follow the palette.
+ *
+ * Layout is grid, not flex, for one reason: the header cells and the body
+ * cells must share a single column definition (`--monitor-cols`). Under the
+ * old flex-with-fixed-widths approach the header and the rows were two
+ * independent lists of magic numbers and drifted apart as soon as a column
+ * changed.
+ */
+
+.monitor {
+  --monitor-cols: minmax(160px, 1fr) 88px 148px 108px 104px 92px 104px;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── stats strip ──────────────────────────────────────────────────────── */
+
+.monitor .stat-strip {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  border-bottom: 1px solid var(--line);
+  background: var(--surface-panel);
+}
+
+.monitor .stat {
+  padding: 14px 18px 16px;
+  border-right: 1px solid var(--line);
+  min-width: 0;
+}
+.monitor .stat:last-child { border-right: 0; }
+
+.monitor .stat-label {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.monitor .stat-value {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-hero);
+  line-height: 1.1;
+  color: var(--ink);
+  white-space: nowrap;
+}
+/* The value is tinted only where the tint carries meaning; the sub-label
+   below always states the same fact in words, so colour is never the sole
+   carrier. */
+.monitor .stat-value.is-synthetic { color: var(--synthetic-color); }
+.monitor .stat-value.is-review { color: var(--review-color); }
+.monitor .stat-value.is-verified { color: var(--verified-color); }
+
+.monitor .stat-sub {
+  margin-top: 6px;
+  font-size: var(--type-label-size);
+  color: var(--muted);
+}
+
+/* ── section head ─────────────────────────────────────────────────────── */
+
+.monitor .section-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 18px 8px;
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+.monitor .section-head .hint {
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--muted);
+}
+
+/* ── call table ───────────────────────────────────────────────────────── */
+
+.monitor .call-table {
+  display: flex;
+  flex-direction: column;
+}
+
+.monitor .call-head,
+.monitor .call-row {
+  display: grid;
+  grid-template-columns: var(--monitor-cols);
+  gap: 12px;
+  align-items: center;
+  padding: var(--row-padding);
+}
+
+.monitor .call-head {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+  border-bottom: 1px solid var(--line);
+}
+
+.monitor .call-row {
+  border-bottom: 1px solid var(--row-divider);
+  cursor: pointer;
+  transition: background var(--t-fast) var(--ease);
+}
+.monitor .call-row:hover { background: var(--surface-hover); }
+.monitor .call-row:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: -2px;
+}
+
+.monitor .cell-num { text-align: right; }
+
+.monitor .cell-id {
+  font-family: var(--font-mono);
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monitor .cell-mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink2);
+}
+
+.monitor .cell-verdict {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.monitor .verdict-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-dot);
+  flex: 0 0 auto;
+}
+.monitor .verdict-label {
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.monitor .cell-confidence {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── signal pips ──────────────────────────────────────────────────────── */
+/* Three fixed slots, always in the same order (behavioral, semantic,
+   acoustic), so a missing signal reads as a gap in a known position rather
+   than as a shorter row. An absent signal is hatched, never zero-width and
+   never flat-coloured — §7.2, "never emit an unmarked degradation". */
+
+.monitor .cell-signals {
+  display: flex;
+  gap: 3px;
+}
+.monitor .pip {
+  width: 14px;
+  height: 11px;
+  border-radius: var(--radius-bar);
+}
+.monitor .pip.on { background: var(--verified-dim); }
+.monitor .pip.off { background: var(--degraded-pattern); }
+
+/* ── empty state ──────────────────────────────────────────────────────── */
+
+.monitor-empty {
+  padding: 48px 18px;
+  color: var(--muted);
+}
+.monitor-empty .headline {
+  font-size: var(--type-metric-mono);
+  color: var(--ink2);
+}
+.monitor-empty .empty-body {
+  margin-top: 8px;
+  max-width: 62ch;
+  line-height: var(--type-line-height);
+}
+.monitor-empty .empty-body code {
+  font-family: var(--font-mono);
+  color: var(--ink2);
+}
+
+@media (max-width: 1100px) {
+  .monitor { --monitor-cols: minmax(120px, 1fr) 72px 128px 92px 92px 78px 88px; }
+  .monitor .stat-strip { grid-template-columns: repeat(2, 1fr); }
+  .monitor .stat { border-bottom: 1px solid var(--line); }
+}

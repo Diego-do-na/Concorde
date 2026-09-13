@@ -1,92 +1,87 @@
 import React from "react";
-import { tokens, DEGRADED } from "../../../theme/tokens";
+import { DEGRADED } from "../../../theme/tokens";
+import "./signals.css";
 
 type Analysis = {
   signals: Record<string, any>;
   degraded?: Record<string, boolean>;
 };
 
-const ROWS: { key: string; label: string }[] = [
-  { key: "behavioral", label: "Behavioral" },
-  { key: "semantic", label: "Semantic" },
-  { key: "acoustic", label: "Acoustic" },
+/**
+ * Per-signal sub-scores (§8.2).
+ *
+ * The three rows are always rendered, in a fixed order, whether or not the
+ * signal ran. A signal that did not run is hatched and labelled DEGRADED —
+ * never a zero-width bar, which would read as "scored 0.00" and is exactly
+ * the unmarked degradation §7.2 forbids.
+ *
+ * The bar fill used to be literal `#ff4d4d` / `#3bff7a`, and was tinted by
+ * whether the score crossed 0.5. That is a threshold the model does not use
+ * (the shipped one is 0.4198) and a colour pair from no palette, so the fill
+ * is now a single neutral and the number carries the value.
+ */
+
+const ROWS: { key: string; label: string; note: string }[] = [
+  { key: "behavioral", label: "Behavioral", note: "F-01…F-22 · turn-taking, latency, overlap" },
+  { key: "semantic", label: "Semantic", note: "F-23 · invention of non-existent information" },
+  { key: "acoustic", label: "Acoustic", note: "spectral extractor" },
 ];
 
+/** Read a sub-score that may arrive as a number or as a wrapped object. */
+function scoreOf(s: unknown): number | null {
+  if (typeof s === "number") return s;
+  if (s && typeof s === "object") {
+    const o = s as Record<string, unknown>;
+    if (typeof o.value === "number") return o.value;
+    if (typeof o.confidence === "number") return o.confidence;
+  }
+  return null;
+}
+
 function isAvailable(analysis: Analysis, key: string) {
-  const flag = analysis.degraded ? (analysis.degraded as any)[`${key}_available`] : undefined;
-  // if flag is explicitly false → degraded; if undefined assume available unless signal is null
-  return !(flag === false);
+  const flag = analysis.degraded?.[`${key}_available`];
+  // An explicit false means shed. Undefined falls back to "present unless
+  // the signal itself is null".
+  return flag !== false;
 }
 
 export default function SignalBreakdown({ analysis }: { analysis: Analysis }) {
-  const anyShed = ROWS.some((r) => !isAvailable(analysis, r.key));
+  const shed = ROWS.filter((r) => scoreOf(analysis.signals?.[r.key]) == null || !isAvailable(analysis, r.key));
 
   return (
-    <div style={{ padding: 12, width: 360, fontFamily: tokens.fonts.body, color: tokens.ink.INK }}>
+    <div className="signal-breakdown">
       {ROWS.map((r) => {
-        const s = analysis.signals?.[r.key];
-        const available = isAvailable(analysis, r.key) && s != null;
-        const rawValue = !available
-          ? null
-          : typeof s === "number"
-            ? s
-            : typeof (s as any)?.value === "number"
-              ? (s as any).value
-              : typeof (s as any)?.confidence === "number"
-                ? (s as any).confidence
-                : null;
-
-        const isDegraded = !available || rawValue == null;
-
-        const fillWidth = isDegraded ? "0%" : `${Math.max(0, Math.min(1, rawValue)) * 100}%`;
-        const fillColor = !isDegraded && rawValue! >= 0.5 ? "#ff4d4d" : "#3bff7a";
+        const raw = isAvailable(analysis, r.key) ? scoreOf(analysis.signals?.[r.key]) : null;
+        const degraded = raw == null;
+        const width = degraded ? "0%" : `${Math.max(0, Math.min(1, raw)) * 100}%`;
 
         return (
-          <div key={r.key} style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
-            <div style={{ width: 110, fontSize: tokens.type.body, color: tokens.ink.DIM_LABEL }}>{r.label}</div>
-            <div style={{ flex: 1 }}>
-              <div
-                aria-label={`${r.key}-track`}
-                style={{
-                  height: 12,
-                  borderRadius: 2,
-                  background: isDegraded ? DEGRADED.HATCH : "oklch(0.26 0.015 252)",
-                  position: "relative",
-                  overflow: "hidden",
-                }}
-              >
-                {/* filled portion */}
-                <div
-                  data-testid={`${r.key}-fill`}
-                  style={{
-                    position: "absolute",
-                    left: 0,
-                    top: 0,
-                    bottom: 0,
-                    width: fillWidth,
-                    background: isDegraded ? "transparent" : fillColor,
-                    transition: "width 160ms linear",
-                  }}
-                />
-              </div>
-            </div>
-            <div style={{ width: 90, textAlign: "right", fontFamily: tokens.fonts.mono, fontSize: tokens.type.body, color: isDegraded ? tokens.ink.MUTED : tokens.ink.INK }}>
-              {isDegraded ? (
-                <span style={{ fontSize: tokens.type.label, letterSpacing: "0.06em", color: tokens.ink.MUTED }}>{DEGRADED.LABEL}</span>
+          <div className="signal-row" key={r.key}>
+            <div className="signal-top">
+              <span className="signal-label">{r.label}</span>
+              {degraded ? (
+                <span className="signal-degraded">{DEGRADED.LABEL}</span>
               ) : (
-                tokens.f2(rawValue!)
+                <span className="signal-score">{raw.toFixed(2)}</span>
               )}
             </div>
+            <div
+              className={`bar-track${degraded ? " is-degraded" : ""}`}
+              aria-label={`${r.key}-track`}
+            >
+              {!degraded && <div data-testid={`${r.key}-fill`} className="bar-fill" style={{ width }} />}
+            </div>
+            <div className="signal-note">{r.note}</div>
           </div>
         );
       })}
 
-      {anyShed ? (
-        <div style={{ marginTop: 8, fontSize: tokens.type.label, color: tokens.ink.MUTED }}>
-          signal shed — verdict is behavioral-only
-        </div>
+      {shed.length > 0 ? (
+        <p className="signal-shed">
+          {shed.length === ROWS.length - 1 ? "Verdict is behavioral-only." : "One or more signals were shed."}{" "}
+          A shed signal is excluded from the blend, not scored as zero.
+        </p>
       ) : null}
     </div>
   );
 }
-

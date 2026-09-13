@@ -1,58 +1,79 @@
 import React from "react";
-import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, fireEvent, waitFor, act } from "@testing-library/react";
 import App from "../App";
 
-// polyfill fetch
-import "whatwg-fetch";
+/*
+ * These tests previously stubbed `/health` with `{ model, contract, p95_ms,
+ * uptime_s }` — a shape the service has never sent. shellContext reads
+ * `model_version` from /health, `feature_contract` from /version and
+ * `routes.detect.p95_ms` from /metrics (three separate calls), so the header
+ * rendered "MODEL —" and the assertions failed once the DOM environment was
+ * fixed and they could actually run. The stub below answers each route with
+ * the body its Rust handler really produces.
+ */
 
-const healthy = { model: "v1.2.3", contract: "fc-1", p95_ms: 120, uptime_s: 3600 };
+const HEALTH = {
+  status: "ok",
+  model_version: "v1.2.3",
+  git_sha: "abc1234",
+  uptime_s: 3600,
+  deps: { tigerdata: "ok", gemini: "ok" },
+};
+const VERSION = { feature_contract: "fc-1", model_version: "v1.2.3", git_sha: "abc1234" };
+const METRICS = { routes: { detect: { count: 12, p50_ms: 80, p95_ms: 120, p99_ms: 200 } } };
 
-beforeEach(() => {
-  // reset fetch mock
+/** Route a stubbed fetch by pathname; `failing` routes reject instead. */
+function stubApi(failing: string[] = []) {
+  return vi.fn(async (input: RequestInfo | URL) => {
+    const path = String(typeof input === "string" ? input : (input as Request).url);
+    if (failing.some((f) => path.includes(f))) throw new Error("network");
+    const body = path.includes("/version") ? VERSION : path.includes("/metrics") ? METRICS : HEALTH;
+    return { ok: true, json: async () => body } as unknown as Response;
+  });
+}
+
+afterEach(() => {
+  vi.useRealTimers();
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("console shell", () => {
   it("renders header with chips and navigates tabs", async () => {
-    // mock /health
-    vi.stubGlobal("fetch", vi.fn(async () => ({
-      ok: true,
-      json: async () => healthy
-    } as any)));
+    vi.stubGlobal("fetch", stubApi());
 
     render(<App />);
 
-    // header shows model chip
     await waitFor(() => expect(screen.getByText(/MODEL v1.2.3/)).toBeInTheDocument());
+    expect(screen.getByText(/CONTRACT fc-1/)).toBeInTheDocument();
+    expect(screen.getByText(/p95 120ms/)).toBeInTheDocument();
 
-    // navigate to Exec
     fireEvent.click(screen.getByText("Exec"));
-    expect(await screen.findByText(/Exec view lands/)).toBeInTheDocument();
+    expect(await screen.findByText(/EVERY FIGURE BELOW IS A LABELLED ESTIMATE/)).toBeInTheDocument();
   });
 
-  it("keeps last known model and shows OFFLINE when /health fails", async () => {
-    const seq = [
-      // first call returns healthy
-      vi.fn().mockResolvedValueOnce({ ok: true, json: async () => healthy }),
-      // second call fails
-      vi.fn().mockRejectedValueOnce(new Error("network"))
-    ];
-    // stub fetch to use the sequence
-    let call = 0;
-    vi.stubGlobal("fetch", (..._args:any) => {
-      const fn = seq[Math.min(call, seq.length-1)];
-      call++;
-      return fn();
-    });
+  it("keeps last known model and shows DEGRADED when /health starts failing", async () => {
+    // The poll interval is 10s, so the original real-timer version of this
+    // test could never reach the second poll inside its own 3s budget and was
+    // asserting against the first, still-healthy render.
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const fetchMock = stubApi();
+    vi.stubGlobal("fetch", fetchMock);
 
     render(<App />);
     await waitFor(() => expect(screen.getByText(/MODEL v1.2.3/)).toBeInTheDocument());
 
-    // wait for second poll which will fail and mark OFFLINE/DEGRADED
-    await waitFor(() => expect(screen.getByText(/DEGRADED|OFFLINE/)).toBeTruthy(), {timeout: 3000});
-    // model still visible
+    // /health goes down; the next poll should mark the shell degraded.
+    fetchMock.mockImplementation(async () => {
+      throw new Error("network");
+    });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_000);
+    });
+
+    await waitFor(() => expect(screen.getByText("DEGRADED")).toBeInTheDocument());
+    // last-known-good health survives the outage rather than blanking out
     expect(screen.getByText(/MODEL v1.2.3/)).toBeInTheDocument();
   });
 });
-

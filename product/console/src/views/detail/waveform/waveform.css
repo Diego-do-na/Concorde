@@ -17,8 +17,8 @@
 .waveform-lane-row {
   position: relative;
   height: 66px;
-  border-bottom: 1px solid oklch(0.25 0.015 252);
-  background: oklch(0.205 0.014 252);
+  border-bottom: 1px solid var(--line-inner-b);
+  background: var(--surface-plot);
 }
 
 .waveform-lane-canvas {
@@ -37,16 +37,16 @@
   align-items: center;
   padding-left: 10px;
   box-sizing: border-box;
-  font-family: 'IBM Plex Mono', monospace;
-  font-size: 11px;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-size);
   letter-spacing: 0.06em;
-  color: oklch(0.6 0.012 252);
-  background: oklch(0.2 0.014 252);
-  border-right: 1px solid oklch(0.25 0.015 252);
+  color: var(--muted);
+  background: var(--surface-panel);
+  border-right: 1px solid var(--line-inner-b);
   pointer-events: none;
 }
 
 .waveform-time-axis {
   position: relative;
-  color: oklch(0.6 0.012 252);
+  color: var(--muted);
 }

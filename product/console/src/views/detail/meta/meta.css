@@ -1,0 +1,74 @@
+/* Stage timings and build metadata — right rail, below the signal breakdown. */
+
+.timings {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.timing-row {
+  display: grid;
+  grid-template-columns: 76px 1fr 64px;
+  gap: 10px;
+  align-items: center;
+}
+
+.timing-label {
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.timing-row .bar-fill {
+  background: var(--line-inner-a);
+}
+
+.timing-value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-body-size);
+  color: var(--ink);
+}
+.timing-value.is-degraded { color: var(--muted); }
+
+/* The total is the scale every other bar is measured against, so it is
+   separated by a rule rather than styled as just another stage. */
+.timing-row.is-total {
+  margin-top: 5px;
+  padding-top: 9px;
+  border-top: 1px solid var(--line);
+}
+.timing-row.is-total .timing-label { color: var(--ink2); }
+.timing-row.is-total .bar-fill { background: var(--line); }
+
+/* ── build metadata ───────────────────────────────────────────────────── */
+
+.meta-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.meta-list > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.meta-list dt {
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+.meta-list dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  color: var(--ink2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

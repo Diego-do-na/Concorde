@@ -1,15 +1,299 @@
-.exec-root { font-family: var(--fonts-body, system-ui, sans-serif); padding: 20px; color: var(--ink-INK, #eee); }
-.banner { background: #222; padding: 8px 12px; border-radius: 6px; display:inline-block; margin-bottom:12px; font-weight:600; }
-.stats-strip { display:flex; gap:16px; margin:12px 0 20px; }
-.stat { background: var(--surfaces.panel, #2b2b2b); padding:12px; border-radius:6px; min-width:160px; }
-.label { font-size:12px; color:var(--ink.DIM_LABEL,#9aa); }
-.value { font-size:18px; margin-top:6px; }
-.value.latency.over { color: #ff6b6b; font-weight:700; }
-.value .sub { font-size:11px; color:var(--ink.MUTED,#888); margin-top:6px; }
-.business-case { margin-top:20px; display:flex; gap:20px; align-items:flex-start; }
-.business-case .hero { font-size:30px; margin:0 20px 0 0; color:var(--ink.LINK,#9fdfb1); }
-.business-case table { border-collapse:collapse; background:var(--surfaces.tableAlt1,#1f1f1f); padding:8px; border-radius:8px; }
-.business-case th, .business-case td { padding:8px 12px; text-align:left; border-bottom:1px solid rgba(255,255,255,0.04); }
-.tag { padding:2px 6px; border-radius:6px; background:rgba(255,255,255,0.04); font-size:11px; margin-left:8px; }
-.tag.measured { background:linear-gradient(90deg,#223322,#113311); color:#bff0c6; }
+/*
+ * Executive view (§11, FR-012 view 3).
+ *
+ * Every var() in this file used to be written in dotted form
+ * (`var(--surfaces.panel)`, `var(--ink.DIM_LABEL)`) — names that do not
+ * exist, so the whole view silently rendered from its hardcoded hex
+ * fallbacks and never touched a token. The names below match
+ * theme/global.css.
+ *
+ * Selectors are scoped under .exec-root on purpose: `.label`, `.value` and
+ * `.stat` are far too generic to leave at the top level in a shared
+ * stylesheet.
+ */
 
+.exec-root {
+  padding: 20px;
+  color: var(--ink);
+  font-family: var(--font-body);
+}
+
+/* The estimate banner is load-bearing, not decoration: §11 requires the
+   business-case assumptions to be visible and labelled as estimates. */
+.exec-root .banner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding: 5px 10px;
+  background: var(--review-wash);
+  border: 1px solid var(--review-dim);
+  border-left: 2px solid var(--review-color);
+  border-radius: var(--radius-panel);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  letter-spacing: var(--type-label-letter-spacing);
+  color: var(--review-color);
+}
+
+/* ── stat strip ───────────────────────────────────────────────────────── */
+
+.exec-root .stats-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  margin: 0 0 24px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  overflow: hidden;
+}
+
+/* 1px grid gaps over a --line background draw the rules between tiles, so
+   there are no double borders where two tiles meet. */
+.exec-root .stat {
+  background: var(--surface-panel);
+  padding: 12px 14px;
+}
+
+.exec-root .stat .label {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.exec-root .stat .value {
+  margin-top: 6px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-metric-mono);
+  color: var(--ink);
+}
+
+.exec-root .stat .value.latency.over {
+  color: var(--synthetic-color);
+  font-weight: 600;
+}
+
+.exec-root .stat .value .sub {
+  margin-top: 6px;
+  font-family: var(--font-body);
+  font-size: var(--type-label-size);
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--muted);
+}
+
+/* ── business case ────────────────────────────────────────────────────── */
+
+.exec-root .business-case {
+  display: block;
+  margin-top: 28px;
+}
+
+/* A wide figure table must scroll inside its own box rather than push the
+   page into a horizontal scroll. */
+.exec-root .table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.exec-root .business-case table {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface-panel);
+  font-size: var(--type-body-size);
+}
+
+.exec-root .business-case th {
+  position: sticky;
+  top: 0;
+  padding: var(--cell-padding);
+  text-align: left;
+  white-space: nowrap;
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--line);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.exec-root .business-case td {
+  padding: var(--cell-padding);
+  text-align: left;
+  border-bottom: 1px solid var(--row-divider);
+  color: var(--ink2);
+}
+
+.exec-root .business-case tbody tr:last-child td { border-bottom: 0; }
+.exec-root .business-case tbody tr:nth-child(even) td { background: var(--surface-table-alt-2); }
+
+/* Figures are mono + tabular so the value column aligns on the decimal. */
+.exec-root .business-case td:nth-child(2) {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* ── provenance tags ──────────────────────────────────────────────────── */
+/* Tag text carries the meaning; the tint only reinforces it. */
+
+.exec-root .tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-chip-bg);
+  font-size: var(--type-label-size);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.exec-root .tag.measured {
+  border-color: var(--verified-dim);
+  background: var(--verified-wash);
+  color: var(--verified-color);
+}
+.exec-root .tag.estimate {
+  border-color: var(--review-dim);
+  background: var(--review-wash);
+  color: var(--review-color);
+}
+
+@media (max-width: 860px) {
+}
+
+/* ── verdict distribution + latency percentiles ───────────────────────── */
+
+.exec-panels {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 32px;
+  padding: 24px 18px 8px;
+}
+
+.exec-panel { min-width: 0; }
+
+.exec-panel .panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+.distribution-bar {
+  display: flex;
+  height: 12px;
+  border-radius: var(--radius-bar);
+  overflow: hidden;
+  background: var(--surface-chip-bg);
+}
+.distribution-seg { display: block; height: 100%; }
+
+.distribution-seg.is-verified,
+.distribution-dot.is-verified { background: var(--verified-color); }
+.distribution-seg.is-review,
+.distribution-dot.is-review { background: var(--review-color); }
+.distribution-seg.is-synthetic,
+.distribution-dot.is-synthetic { background: var(--synthetic-color); }
+
+.distribution-list {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.distribution-row {
+  display: grid;
+  grid-template-columns: 9px 1fr 72px 88px;
+  gap: 10px;
+  align-items: center;
+  font-size: var(--type-body-size);
+}
+.distribution-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: var(--radius-dot);
+}
+.distribution-label { color: var(--ink2); }
+.distribution-pct,
+.distribution-count {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+.distribution-count { color: var(--ink2); }
+
+.percentiles {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.percentile-row {
+  display: grid;
+  grid-template-columns: 42px 1fr 88px;
+  gap: 12px;
+  align-items: center;
+}
+.percentile-label {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  color: var(--ink2);
+}
+.percentile-row .bar-track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-bar);
+  background: var(--surface-chip-bg);
+  overflow: hidden;
+}
+.percentile-row .bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--line-inner-a);
+}
+/* Over the internal target is a state worth seeing without reading digits. */
+.percentile-row .bar-fill.is-over { background: var(--review-color); }
+.percentile-value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-body-size);
+  color: var(--ink);
+}
+
+.panel-footnote {
+  margin: 14px 0 0;
+  max-width: 72ch;
+  font-size: var(--type-label-size);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.exec-provenance {
+  margin: 28px 18px 0;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--type-label-size);
+  line-height: 1.6;
+  color: var(--muted);
+}
+
+@media (max-width: 1100px) {
+  .exec-panels { grid-template-columns: minmax(0, 1fr); }
+}

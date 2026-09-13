@@ -5,6 +5,8 @@ import DetailView from "../DetailView";
 import { makeFixtures } from "../../../mocks/fixtures";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import * as api from "../../../lib/api";
+import { ShellProvider } from "../../../app/shellContext";
+import { makeStubFeed } from "../../../test/stubFeed";
 
 beforeEach(() => {
   vi.restoreAllMocks();
@@ -14,20 +16,7 @@ describe("Detail view", () => {
   it("renders with fixture analysis and responds to sidebar clicks", async () => {
     const fixtures = makeFixtures();
 
-    const subs: any[] = [];
-    const mockFeed = {
-      subscribe(cb: any) {
-        subs.push(cb);
-        cb(fixtures);
-        return () => {
-          const i = subs.indexOf(cb);
-          if (i >= 0) subs.splice(i, 1);
-        };
-      },
-      close() {},
-      online: true,
-      lastItems: fixtures,
-    } as any;
+    const mockFeed = makeStubFeed(fixtures);
 
     // mock API: return full analysis for call-1, null for others
     vi.spyOn(api, "getFeedAnalysis").mockImplementation(async (id: string) => {
@@ -36,9 +25,11 @@ describe("Detail view", () => {
 
     render(
       <MemoryRouter initialEntries={["/calls/call-1"]}>
-        <Routes>
-          <Route path="/calls/:id" element={<DetailView feed={mockFeed} />} />
-        </Routes>
+        <ShellProvider feed={mockFeed}>
+          <Routes>
+            <Route path="/calls/:id" element={<DetailView feed={mockFeed} />} />
+          </Routes>
+        </ShellProvider>
       </MemoryRouter>
     );
 
@@ -57,24 +48,18 @@ describe("Detail view", () => {
 
   it("shows retained-only state when analysis not retained", async () => {
     const fixtures = makeFixtures();
-    const mockFeed = {
-      subscribe(cb: any) {
-        cb(fixtures);
-        return () => {};
-      },
-      close() {},
-      online: true,
-      lastItems: fixtures,
-    } as any;
+    const mockFeed = makeStubFeed(fixtures);
 
     // mock API to always return null (not retained)
     vi.spyOn(api, "getFeedAnalysis").mockResolvedValue(null);
 
     render(
       <MemoryRouter initialEntries={["/calls/call-2"]}>
-        <Routes>
-          <Route path="/calls/:id" element={<DetailView feed={mockFeed} />} />
-        </Routes>
+        <ShellProvider feed={mockFeed}>
+          <Routes>
+            <Route path="/calls/:id" element={<DetailView feed={mockFeed} />} />
+          </Routes>
+        </ShellProvider>
       </MemoryRouter>
     );
 

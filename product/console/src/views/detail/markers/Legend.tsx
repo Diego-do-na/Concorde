@@ -1,28 +1,29 @@
 import React from "react";
 import { MarkerEvent } from "./MarkerOverlay";
+import "./markers.css";
 
+const TYPES = [
+  { type: "overlap", label: "Overlap" },
+  { type: "interruption", label: "Interruption" },
+  { type: "silence", label: "Silence > 2s" },
+] as const;
+
+/** Counts per event type, shown above the plot the markers are drawn on. */
 export default function Legend({ events }: { events: MarkerEvent[] }) {
   const counts = { overlap: 0, interruption: 0, silence: 0 };
-  events.forEach((e) => {
-    if (e.type === "overlap") counts.overlap++;
-    if (e.type === "interruption") counts.interruption++;
-    if (e.type === "silence") counts.silence++;
-  });
-
-  const row = (label: string, type: string, glyph: React.ReactNode, count: number) => (
-    <div style={{ display: "flex", gap: 8, alignItems: "center", fontFamily: "IBM Plex Mono, monospace" }} data-testid={`legend-${type}`}>
-      <div style={{ width: 18, height: 18 }}>{glyph}</div>
-      <div style={{ flex: 1 }}>{label}</div>
-      <div style={{ fontFamily: "IBM Plex Mono, monospace" }}>{count}</div>
-    </div>
-  );
+  for (const e of events ?? []) {
+    if (e.type in counts) counts[e.type as keyof typeof counts]++;
+  }
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 6 }}>
-      {row("Overlap", "overlap", <div style={{ width: 12, height: 12, transform: "rotate(45deg)", background: "oklch(0.95 0.006 252)" }} />, counts.overlap)}
-      {row("Interruption", "interruption", <div style={{ width: 12, height: 12, borderRadius: 999, background: "oklch(0.86 0.01 252)" }} />, counts.interruption)}
-      {row("Silence > 2s", "silence", <div style={{ width: 12, height: 12, border: "1px solid oklch(0.8 0.01 252)" }} />, counts.silence)}
+    <div className="legend">
+      {TYPES.map(({ type, label }) => (
+        <div className="legend-item" data-testid={`legend-${type}`} key={type}>
+          <span className={`legend-glyph ${type}`} aria-hidden="true" />
+          <span>{label}</span>
+          <span className="legend-count">{counts[type]}</span>
+        </div>
+      ))}
     </div>
   );
 }
-

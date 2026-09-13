@@ -1,117 +1,97 @@
 import React from "react";
-import { tokens, DEGRADED } from "../../../theme/tokens";
+import { toneFor } from "../../../theme/tokens";
 import { FEATURE_NOTES } from "./featureNotes";
+import "./factors.css";
 
 type TopFactor = { feature: string; value: number | string; direction: "synthetic" | "human"; weight: number };
-type Analysis = {
-  top_factors: TopFactor[];
-  rationale?: string;
-  timings_ms?: { decode: number; vad: number; features: number; semantic: number | null; inference: number; total: number };
-  meta?: { model_version?: string; git_sha?: string; feature_contract?: string; caller_turns?: number; duration_s?: number };
-};
+type Analysis = { top_factors: TopFactor[] };
 
-function DirectionLabel({ dir }: { dir: "synthetic" | "human" }) {
-  const color = dir === "synthetic" ? tokens.semantic.SYNTHETIC.color : tokens.semantic.VERIFIED.color;
-  const label = dir === "synthetic" ? "SYNTHETIC" : "HUMAN";
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <span style={{ width: 10, height: 10, borderRadius: 6, background: color }} />
-      <div style={{ fontSize: tokens.type.label, color }}>{label}</div>
-    </div>
-  );
+/**
+ * Top contributing factors (FR-009).
+ *
+ * This component used to also own the rationale, the stage timings and the
+ * model metadata. Those moved to `CallMeta` in the right rail, where the
+ * reference layout puts them — next to the signal breakdown they explain,
+ * rather than below a table of numbers.
+ *
+ * `top_factors` is empty for a call read back from `/feed/analysis/:id`:
+ * only `POST /analyze` computes importances. That is a real absence, so it
+ * gets an explicit message rather than an empty table.
+ */
+
+/** The name the extractor emits, e.g. "resp_latency_cv" → "F-04". */
+const ID_BY_KEY: Record<string, string> = Object.fromEntries(
+  Object.entries(FEATURE_NOTES).map(([id, v]) => [v.key, id]),
+);
+
+function describe(feature: string) {
+  // top_factors carries the extractor's own name ("resp_latency_cv"), but a
+  // hand-built fixture may carry the contract id ("F-04"). Accept either.
+  const byId = FEATURE_NOTES[feature];
+  if (byId) return { id: feature, key: byId.key, note: byId.note };
+  const id = ID_BY_KEY[feature];
+  if (id) return { id, key: feature, note: FEATURE_NOTES[id].note };
+  return { id: "", key: feature, note: "" };
 }
 
 export default function Factors({ analysis }: { analysis: Analysis }) {
   const factors = analysis.top_factors || [];
+
+  if (factors.length === 0) {
+    return (
+      <div className="factors-empty" data-testid="no-factors">
+        Feature importances are computed by <code>POST /analyze</code> and are not stored with the
+        retained analysis, so they are unavailable for this call.
+      </div>
+    );
+  }
+
   const maxWeight = factors.reduce((m, f) => Math.max(m, f.weight ?? 0), 0) || 1;
 
   return (
-    <div style={{ padding: 12, fontFamily: tokens.fonts.body, color: tokens.ink.INK, width: 900 }}>
-      <h3 style={{ marginTop: 0 }}>TOP CONTRIBUTING FACTORS · MODEL FEATURE IMPORTANCE (FR-009)</h3>
-
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "minmax(150px,1.6fr) 64px 88px minmax(60px,1fr)",
-          gap: 12,
-          alignItems: "center",
-          marginBottom: 8,
-        }}
-      >
-        {factors.map((f, i) => {
-          const note = FEATURE_NOTES[f.feature] || { key: f.feature, note: "" };
-          const weightPct = Math.round((f.weight / maxWeight) * 100);
-          return (
-            <React.Fragment key={f.feature + i}>
-              <div>
-                <div style={{ fontFamily: tokens.fonts.mono, fontSize: tokens.type.body }}>{note.key}</div>
-                <div style={{ fontSize: 11, color: tokens.ink.INK2 }}>{`${f.feature} — ${note.note}`}</div>
-              </div>
-
-              <div style={{ textAlign: "right", fontFamily: tokens.fonts.mono }}>{String(f.value)}</div>
-
-              <div>
-                <DirectionLabel dir={f.direction} />
-              </div>
-
-              <div>
-                <div style={{ height: 12, background: "oklch(0.26 0.015 252)", borderRadius: 3, position: "relative", overflow: "hidden" }}>
-                  <div
-                    data-testid={`weight-bar-${i}`}
-                    style={{
-                      position: "absolute",
-                      left: 0,
-                      top: 0,
-                      bottom: 0,
-                      width: `${weightPct}%`,
-                      background: "linear-gradient(90deg,#4fb3ff,#3bff7a)",
-                    }}
-                  />
-                </div>
-                <div style={{ marginTop: 6, fontSize: tokens.type.label, color: tokens.ink.MUTED }}>{(f.weight).toFixed(3)}</div>
-              </div>
-            </React.Fragment>
-          );
-        })}
+    <div className="factors">
+      <div className="factors-head">
+        <div>Feature</div>
+        <div className="num">Value</div>
+        <div>Direction</div>
+        <div>Weight</div>
       </div>
 
-      <div style={{ marginTop: 10, fontSize: 13, color: tokens.ink.INK2 }}>{analysis.rationale}</div>
+      {factors.map((f, i) => {
+        const d = describe(f.feature);
+        const tone = toneFor(f.direction === "synthetic" ? "synthetic" : "verified");
+        const weightPct = Math.round((f.weight / maxWeight) * 100);
+        return (
+          <div className="factor-row" key={`${f.feature}-${i}`}>
+            <div className="factor-name">
+              <div className="key">{d.key}</div>
+              <div className="note">{d.id ? `${d.id} · ${d.note}` : d.note}</div>
+            </div>
 
-      <div style={{ marginTop: 12 }}>
-        <div style={{ fontSize: tokens.type.label, color: tokens.ink.DIM_LABEL, marginBottom: 6 }}>STAGE TIMINGS (ms)</div>
-        <div style={{ display: "flex", gap: 12, alignItems: "flex-end" }}>
-          {["decode", "vad", "features", "semantic", "inference"].map((k) => {
-            const v = (analysis.timings_ms as any)?.[k];
-            const isSemantic = k === "semantic";
-            const isDegraded = isSemantic && v == null;
-            const height = v == null ? 6 : Math.max(6, Math.min(120, (v / ((analysis.timings_ms?.total || 1) / 120)) ));
-            return (
-              <div key={k} style={{ width: 80, textAlign: "center" }}>
+            <div className="factor-value num">
+              {typeof f.value === "number" ? f.value.toFixed(2) : String(f.value)}
+            </div>
+
+            {/* Direction is a word plus an arrow glyph; the tint only
+                reinforces it. */}
+            <div className="factor-direction" style={{ color: tone.color }}>
+              <span aria-hidden="true">{f.direction === "synthetic" ? "▲" : "▼"}</span>
+              <span>{f.direction === "synthetic" ? "SYNTHETIC" : "HUMAN"}</span>
+            </div>
+
+            <div className="factor-weight">
+              <div className="bar-track">
                 <div
-                  data-testid={`timing-${k}`}
-                  style={{
-                    height,
-                    background: isDegraded ? DEGRADED.HATCH : "oklch(0.3 0.02 252)",
-                    borderRadius: 3,
-                    marginBottom: 6,
-                  }}
+                  data-testid={`weight-bar-${i}`}
+                  className="bar-fill"
+                  style={{ width: `${weightPct}%`, background: tone.color }}
                 />
-                <div style={{ fontSize: tokens.type.label, color: isDegraded ? tokens.ink.MUTED : tokens.ink.INK }}>{v == null ? "—" : String(v)}</div>
               </div>
-            );
-          })}
-          <div style={{ marginLeft: 10, fontFamily: tokens.fonts.mono, color: tokens.ink.INK }}>Total: {analysis.timings_ms?.total ?? "—"}</div>
-        </div>
-      </div>
-
-      <div style={{ marginTop: 12, fontFamily: tokens.fonts.mono, fontSize: tokens.type.body }}>
-        <div>MODEL: {analysis.meta?.model_version ?? "—"}</div>
-        <div>CONTRACT: {analysis.meta?.feature_contract ?? "—"}</div>
-        <div>GIT SHA: {analysis.meta?.git_sha ?? "—"}</div>
-        <div>CALLER TURNS: {analysis.meta?.caller_turns ?? "—"}</div>
-        <div>DURATION: {analysis.meta?.duration_s ?? "—"}s</div>
-      </div>
+              <div className="weight-value">{f.weight.toFixed(2)}</div>
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
-

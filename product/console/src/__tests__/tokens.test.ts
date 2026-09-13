@@ -1,5 +1,7 @@
+// Two suites were concatenated into this file and each brought its own
+// import block, which `tsc` reads as duplicate identifiers.
 import { describe, it, expect } from 'vitest'
-import { tokens } from '../theme/tokens'
+import { tokens, verdictOf, SEMANTIC, DEGRADED } from '../theme/tokens'
 
 describe('tokens and helpers', () => {
   it('verdict mapping', () => {
@@ -26,8 +28,6 @@ describe('tokens and helpers', () => {
   })
 })
 
-import { describe, it, expect } from 'vitest'
-import { verdictOf, SEMANTIC, DEGRADED } from '../theme/tokens'
 
 describe('verdicts and tokens', () => {
   it('verdict mapping works', () => {

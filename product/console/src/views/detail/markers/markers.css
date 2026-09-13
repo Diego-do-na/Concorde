@@ -1,0 +1,117 @@
+/* Event markers: the legend above the plot and the log in the right rail. */
+
+.legend {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: var(--type-label-size);
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Each event type gets its own shape as well as its own value, so the three
+   are distinguishable in the plot overlay without relying on colour. */
+.legend-glyph {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  background: var(--ink2);
+}
+.legend-glyph.overlap { transform: rotate(45deg); }
+.legend-glyph.interruption { border-radius: var(--radius-dot); }
+.legend-glyph.silence {
+  background: transparent;
+  border: 1px solid var(--ink2);
+}
+
+.legend-count {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink);
+}
+
+/* ── event log ────────────────────────────────────────────────────────── */
+
+.event-log {
+  display: flex;
+  flex-direction: column;
+}
+
+.event-row {
+  display: grid;
+  grid-template-columns: 54px 1fr 56px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--row-divider);
+  font-size: var(--type-body-size);
+}
+.event-row:last-child { border-bottom: 0; }
+
+.event-time,
+.event-duration {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--ink2);
+}
+.event-duration { text-align: right; }
+
+.event-kind {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+
+.event-empty {
+  padding: 10px 0;
+  font-size: var(--type-body-size);
+  color: var(--muted);
+}
+
+/* ── plot overlay ─────────────────────────────────────────────────────── */
+/* Absolute layer over the waveform lanes; the container must be relative.
+   pointer-events off so the waveform keeps receiving hover for scrubbing. */
+
+.marker-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.marker {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+}
+
+/* Each type gets its own dash rhythm, so the three are separable in a
+   greyscale print of the plot. */
+.marker.overlap {
+  background: repeating-linear-gradient(to bottom, var(--playhead) 0 6px, transparent 6px 9px);
+}
+.marker.interruption {
+  background: var(--mono-1);
+}
+.marker.silence {
+  background: repeating-linear-gradient(to bottom, var(--ink2) 0 3px, transparent 3px 7px);
+}
+
+.marker-glyph {
+  position: absolute;
+  top: 5px;
+  left: -4px;
+}

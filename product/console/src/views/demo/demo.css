@@ -1,0 +1,313 @@
+/*
+ * Demo zone (View 4, FR-013).
+ *
+ * Two columns: what you put in, and exactly what came back out. The right
+ * column is deliberately literal — a raw response body, not a summary —
+ * because the claim being demonstrated is about the shape of `/detect`'s
+ * contract, and a prettied-up rendering would be evidence of nothing.
+ */
+
+.demo {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 28px;
+  padding: 18px 18px 40px;
+  align-items: start;
+}
+
+.demo-input,
+.demo-output {
+  min-width: 0;
+}
+
+/* ── dropzone ─────────────────────────────────────────────────────────── */
+
+.dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 34px 24px;
+  text-align: center;
+  cursor: pointer;
+  border: 1px dashed var(--chip-border);
+  border-radius: var(--radius-panel);
+  background: var(--surface-panel);
+  transition: border-color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+.dropzone:hover,
+.dropzone.is-dragging {
+  border-color: var(--link);
+  background: var(--surface-hover);
+}
+.dropzone:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 2px;
+}
+
+/* The native file input is replaced, not hidden with display:none — it must
+   stay focusable and announced for keyboard and screen-reader use. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.dropzone-glyph {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-panel);
+  color: var(--ink2);
+  font-size: 14px;
+  line-height: 1;
+}
+
+.dropzone-title {
+  font-size: 15px;
+  color: var(--ink);
+}
+
+.dropzone-note {
+  max-width: 62ch;
+  font-size: var(--type-label-size);
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.dropzone-file {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-size: var(--type-label-size);
+  color: var(--link);
+}
+
+/* ── pre-wired clips ──────────────────────────────────────────────────── */
+
+.clip-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.clip {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 12px 14px;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  transition: background var(--t-fast) var(--ease), border-color var(--t-fast) var(--ease);
+}
+.clip:hover {
+  background: var(--surface-hover);
+  border-color: var(--chip-border);
+}
+.clip:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: -2px;
+}
+
+.clip-play {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-dot);
+  font-size: 10px;
+  color: var(--ink2);
+}
+
+.clip-body {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.clip-label { font-size: var(--type-body-size); }
+.clip-note {
+  font-size: var(--type-label-size);
+  color: var(--muted);
+}
+
+/* ── output panel ─────────────────────────────────────────────────────── */
+
+.output-panel {
+  padding: 16px 18px 20px;
+  background: var(--surface-panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+}
+
+.output-file {
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  color: var(--ink2);
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.status-chip {
+  padding: 3px 8px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--chip-border);
+  background: var(--surface-chip-bg);
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  color: var(--ink2);
+}
+.status-chip.is-analysing { color: var(--link); border-color: var(--link); }
+.status-chip.is-done { color: var(--verified-color); border-color: var(--verified-dim); }
+.status-chip.is-fetch_failed { color: var(--review-color); border-color: var(--review-dim); }
+
+.stage-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 14px 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.stage-row {
+  display: grid;
+  grid-template-columns: 78px 1fr 64px;
+  gap: 10px;
+  align-items: center;
+}
+.stage-label {
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+.stage-row .bar-fill { background: var(--line-inner-a); }
+.stage-value {
+  text-align: right;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-body-size);
+  color: var(--ink2);
+}
+
+.verdict-row {
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 18px 0;
+}
+
+.verdict-badge.lg {
+  font-size: 17px;
+  padding: 10px 16px;
+  color: var(--muted);
+  background: var(--surface-chip-bg);
+}
+.verdict-badge.lg .dot {
+  width: 9px;
+  height: 9px;
+}
+
+.confidence-figure .field-label {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+.confidence-figure .field-value {
+  margin-top: 4px;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-size: var(--type-metric-mono);
+  color: var(--muted);
+}
+
+.response-body {
+  margin: 0;
+  padding: 12px 14px;
+  min-height: 92px;
+  overflow-x: auto;
+  background: var(--surface-page);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  font-family: var(--font-mono);
+  font-size: var(--type-body-size);
+  line-height: 1.55;
+  color: var(--mono-2);
+}
+
+.demo-footnote {
+  margin: 12px 0 0;
+  max-width: 70ch;
+  font-size: var(--type-label-size);
+  line-height: 1.55;
+  color: var(--muted);
+}
+
+.demo-error {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  max-width: 70ch;
+  font-size: var(--type-label-size);
+  line-height: 1.55;
+  color: var(--review-color);
+  background: var(--review-wash);
+  border: 1px solid var(--review-dim);
+  border-radius: var(--radius-panel);
+}
+
+.open-detail {
+  margin-top: 18px;
+  padding: 9px 16px;
+  cursor: pointer;
+  font: inherit;
+  font-size: var(--type-body-size);
+  color: var(--ink);
+  background: var(--surface-chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-panel);
+  transition: background var(--t-fast) var(--ease);
+}
+.open-detail:hover:not(:disabled) { background: var(--surface-hover); }
+.open-detail:disabled {
+  color: var(--dim-label);
+  cursor: default;
+  opacity: 0.55;
+}
+.open-detail:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 2px;
+}
+
+@media (max-width: 1000px) {
+  .demo { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* A verdict close to the threshold is still a verdict — the badge states it
+   plainly and this line qualifies it, rather than the badge changing colour
+   to something that reads as a third answer. */
+.review-note {
+  margin-top: 5px;
+  max-width: 34ch;
+  font-size: var(--type-label-size);
+  line-height: 1.4;
+  color: var(--review-color);
+}

@@ -1,12 +1,25 @@
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+/*
+ * Global stylesheet — §11 / NFR-012.
+ *
+ * The CSS custom properties below mirror src/theme/tokens.ts one-for-one.
+ * Components styled in CSS read these; components styled in JS read the TS
+ * exports. Change a value in one place and you must change it in the other.
+ *
+ * The webfont link lives in index.html, not in an @import here: an @import
+ * cannot start downloading until this file has been fetched and parsed, which
+ * paints the whole console in the fallback sans and then reflows every
+ * tabular-figure column once IBM Plex lands.
+ */
 
 :root {
+  color-scheme: dark;
+
   /* fonts */
   --font-body: 'IBM Plex Sans', system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', monospace;
   --font-feature-settings: "tnum" 1, "lnum" 1;
 
-  /* surfaces */
+  /* surfaces — separated by luminance, never by shadow */
   --surface-page: oklch(0.185 0.014 252);
   --surface-panel: oklch(0.2 0.014 252);
   --surface-panel-alt: oklch(0.197 0.014 252);
@@ -40,7 +53,7 @@
   --focus-outline: oklch(0.8 0.05 252);
   --selection: oklch(0.4 0.05 252);
 
-  /* semantic */
+  /* semantic — exactly three states */
   --verified-color: oklch(0.74 0.12 168);
   --verified-dim: oklch(0.42 0.07 168);
   --verified-wash: oklch(0.27 0.035 168);
@@ -53,11 +66,10 @@
   --synthetic-dim: oklch(0.40 0.09 24);
   --synthetic-wash: oklch(0.27 0.045 24);
 
-  /* degraded */
+  /* degraded — a hatch, so it never reads as a zero value */
   --degraded-pattern: repeating-linear-gradient(135deg, oklch(0.46 0.012 252) 0 3px, oklch(0.3 0.014 252) 3px 6px);
-  --degraded-label: 'DEGRADED';
 
-  /* type */
+  /* type — at most four sizes; hierarchy comes from weight and colour */
   --type-label-size: 11px;
   --type-label-letter-spacing: 0.1em;
   --type-body-size: 13px;
@@ -66,7 +78,7 @@
   --type-hero: 30px;
   --type-line-height: 1.45;
 
-  /* radii */
+  /* radii — near-square; this is an instrument panel, not a marketing page */
   --radius-panel: 2px;
   --radius-bar: 1px;
   --radius-dot: 50%;
@@ -76,40 +88,144 @@
   --header-gap: 20px;
   --nav-tab: 9px 14px;
   --panel-padding: 14px 18px 22px;
+  --row-padding: 7px 12px;
+  --cell-padding: 6px 10px;
+
+  /* motion — functional only */
+  --t-fast: 90ms;
+  --t-base: 150ms;
+  --ease: cubic-bezier(0.2, 0, 0.2, 1);
 }
+
+*, *::before, *::after { box-sizing: border-box; }
 
 html, body {
   margin: 0;
   height: 100%;
   background: var(--surface-page);
   font-family: var(--font-body);
+  font-size: var(--type-body-size);
+  font-weight: var(--type-body-weight);
   -webkit-font-smoothing: antialiased;
   font-feature-settings: var(--font-feature-settings);
   color: var(--ink);
   line-height: var(--type-line-height);
 }
 
+#root { min-height: 100%; }
+
 ::selection { background: var(--selection); }
 
 a { color: var(--link); text-decoration: none; }
 a:hover { color: var(--link-hover); }
 
-.app-root {
-  min-height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Inputs do not inherit the family by default, which is how a stray
+   system-ui control ends up in the middle of a Plex-set console. */
+button, input, select, textarea {
+  font: inherit;
+  font-feature-settings: inherit;
+  color: inherit;
 }
-.wordmark { text-align: center; }
-.brand {
-  font-size: 13px;
-  font-weight: 600;
-  letter-spacing: 0.14em;
-  color: var(--ink);
+
+/* One focus treatment for the whole app. :focus-visible so a mouse click on
+   a table row does not leave a ring behind, while Tab always does. */
+:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: 1px;
 }
-.product {
-  font-size: 11px;
-  font-weight: 400;
+
+/* Numeric columns must align; identifiers and payloads are mono. */
+.mono, .tabular {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Section / column labels: 11px, tracked out, dim. */
+.label-xs {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+
+/* ─────────────────────────────────────────────────────────────────────────
+ * Shared primitives.
+ *
+ * These are the only class names used by more than one view, and they live
+ * here because a bundle has one global namespace: defining `.bar-track` in
+ * four view stylesheets means whichever Vite concatenates last silently wins.
+ * Everything else stays scoped under its view root (`.exec-root`, `.monitor`,
+ * `.detail`, `.demo`) — a lesson already paid for once, when the monitor's
+ * empty state used a bare `.detail` and inherited the detail view's
+ * three-column grid, which stacked its own sentences on top of each other.
+ * ───────────────────────────────────────────────────────────────────────── */
+
+/* A proportion bar. The track is always full width so an empty bar reads as
+   "zero of the same scale", not as a missing element. */
+.bar-track {
+  position: relative;
+  height: 10px;
+  border-radius: var(--radius-bar);
+  background: var(--surface-chip-bg);
+  overflow: hidden;
+}
+.bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  transition: width var(--t-base) var(--ease);
+}
+/* A hatched track is a signal that did not run — never a zero-width fill. */
+.bar-track.is-degraded {
+  background: var(--degraded-pattern);
+}
+
+/* Section heading above a panel: label left, qualifier right. The qualifier
+   is prose, so it opts out of the heading's uppercase letterspacing. */
+.panel-head-note {
+  letter-spacing: 0;
+  text-transform: none;
   color: var(--muted);
 }
 
+.panel-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 0 8px;
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--dim-label);
+}
+
+/* Verdict pill: dot + word + wash, three redundant encodings so it survives
+   a monochrome projector at the back of a room. */
+.verdict-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: var(--radius-panel);
+  border: 1px solid currentColor;
+  font-size: var(--type-body-size);
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+.verdict-badge .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-dot);
+  background: currentColor;
+}
