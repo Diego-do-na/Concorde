@@ -1578,10 +1578,10 @@ tasks:
   - T025
   - T026
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T040
+  claimed_at: '2026-09-13T01:18:47+00:00'
   done_at: null
 - id: T041
   title: '[Paul] Snapshot, cold standby procedure, contingency runbook (NFR-002, §18.3)'
