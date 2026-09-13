@@ -523,3 +523,22 @@ numbers (caller 0.873, agent 0.861, `validation/vad_agreement/`): that
 pipeline compares the system's own VAD turn boundaries directly against
 `turns.json` and never calls whisper.cpp or touches probe ground truth at
 all — structurally independent of this bug.
+ 
+## Acoustic sub-signal (experimental, COULD)
+
+An optional low-dimensional acoustic sub-signal lives under
+`product/ml/acoustic/`. It exposes 8 cheap caller-channel descriptors
+(spectral flatness mean/std, spectral centroid mean/std, an autocorrelation-
+derived F0 stability metric, LTAS tilt, silence-floor level, clipping ratio)
+and a tiny LightGBM trained only on those features.
+
+Design notes:
+- Deliberately small to reduce the risk of memorising specific TTS engine
+  artifacts; trained as a separate model and exported with a simple meta
+  sidecar (`product/artifacts/acoustic.onnx.meta.json`).
+- Validation: parity test on 5 golden calls (1e-4), val AUC reported in
+  `product/ml/acoustic/REPORT.md` together with an ElevenLabs generalisation
+  check.
+- Runtime: acoustic signals are surfaced only in `/analyze` (rich analysis
+  payload). `/detect` remains behavioral-only unless Diego explicitly
+  approves a fused threshold after reviewing red-team results.
