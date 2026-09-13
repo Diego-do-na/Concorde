@@ -164,6 +164,46 @@ in the Rust extractor, T014):
   (when both channels went silent) to the first caller turn starting at
   or after that point.
 
+## Dataset build: fc-1 tables from both turn sources (T016)
+
+`train/build_dataset.py` computes the fc-1 vector for every one of the
+353 calls in `manifest.csv` **twice**: once from the practice dataset's
+ground-truth `turns/<id>.json` ("ref") and once from this system's own
+Rust VAD, invoked via the release `vad-dump` binary ("vad") — the exact
+turns shape `/detect` produces at serving time, since `turns/<id>.json`
+only exists in this practice dataset (ADR-003, FR-004).
+
+```bash
+cd product
+cargo build --release --bin vad-dump   # once, or let build_dataset.py do it
+cd ml
+python -m train.build_dataset
+```
+
+Writes (all under `ml/data/`, gitignored, never committed — NFR-011):
+
+- `ml/data/features_ref.parquet` — ground-truth-turns vectors.
+- `ml/data/features_vad.parquet` — **the training table.** T017+ trains
+  on this one, never on `features_ref`: training must see the same
+  turns the served system will actually produce, not the oracle
+  `turns.json` that only exists here — training on `features_ref` would
+  itself be a training/serving skew bug (R-01, FR-004/ADR-003).
+- `ml/data/skew_report.md` — for each of the 23 fc-1 features, the mean
+  absolute difference between the two sources and their Spearman rank
+  correlation across all 353 calls; any feature with correlation below
+  0.7 (or undefined, when one source is constant across every call) is
+  flagged **VAD-sensitive** — R-01 evidence for T017 to watch, since a
+  feature that swings depending on which turns source produced it is a
+  candidate for high train/serve variance.
+
+Both tables share the same columns: `anon_id`, `label`, `split`,
+`duration_s`, the 23 fc-1 feature names in contract order, `source`
+(`"ref"` or `"vad"`). The build is idempotent — every run recomputes
+both tables and the skew report from scratch and overwrites the three
+files; it also re-asserts the fc-1 contract (`features/contract.py`)
+before touching anything, so a drifted feature order fails loudly
+instead of silently producing a mislabeled table.
+
 ## ADR-012 deviation: no speaker ID in this dataset
 
 `manifest.csv` has no speaker-identifier column, and the dataset terms
