@@ -1088,11 +1088,11 @@ tasks:
   - T024
   - T022
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T025
   claimed_at: '2026-09-13T00:49:24+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:53:27+00:00'
 - id: T026
   title: '[Paul] /metrics, full /health deps, /version (FR-010, FR-011, NFR-008)'
   description: '(a) BUILD — product/api/src/metrics.rs: process-wide counters (requests,
