@@ -6,7 +6,7 @@
   "type": "object",
   "required": [
     "verdict", "signals", "degraded", "timeline", "turns", "events",
-    "features", "top_factors", "rationale", "timings_ms", "meta"
+    "features", "top_factors", "rationale", "waveform", "timings_ms", "meta"
   ],
   "additionalProperties": true,
   "properties": {
@@ -97,6 +97,24 @@
       }
     },
     "rationale": { "type": "string", "minLength": 1 },
+    "waveform": {
+      "type": "object",
+      "description": "Console-only waveform envelope: peak amplitude per 50ms bucket for both channels.",
+      "required": ["caller", "agent", "bucket_ms"],
+      "properties": {
+        "caller": {
+          "type": "array",
+          "description": "Peak absolute amplitude in [0, 1] per bucket (channel 0), rounded to 3 decimals.",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "agent": {
+          "type": "array",
+          "description": "Peak absolute amplitude in [0, 1] per bucket (channel 1), rounded to 3 decimals.",
+          "items": { "type": "number", "minimum": 0, "maximum": 1 }
+        },
+        "bucket_ms": { "type": "number", "enum": [50], "description": "Time duration of each bucket in milliseconds." }
+      }
+    },
     "timings_ms": {
       "type": "object",
       "required": ["decode", "vad", "features", "semantic", "inference", "total"],

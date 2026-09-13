@@ -23,6 +23,7 @@ use std::time::Instant;
 use anyhow::{Context, Result};
 use serde::Serialize;
 
+use crate::analysis::waveform;
 use crate::audio::vad::{detect_turns, Turn, VadParams};
 use crate::features::{self, FC1_NAMES};
 use crate::state::SharedState;
@@ -92,6 +93,7 @@ pub struct Analysis {
     pub verdict: Verdict,
     pub timings_ms: TimingsMs,
     pub model_version: Option<String>,
+    pub waveform: waveform::Waveform,
 }
 
 /// Run the full pipeline over a decoded-or-not WAV byte slice. Fails only
@@ -135,6 +137,10 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
 
     let events = compute_events(&caller, &agent, duration_s);
     let turn_counts = TurnCounts { caller: caller.len(), agent: agent.len() };
+
+    // Compute waveform envelope (console-only enrichment, §8.2, ADR-013)
+    let waveform_obj = waveform::compute(bytes, 50).context("waveform extraction failed")?;
+
     let total_ms = elapsed_ms(total_start);
 
     Ok(Analysis {
@@ -156,6 +162,7 @@ pub fn analyze_bytes(state: &SharedState, bytes: &[u8]) -> Result<Analysis> {
             total: total_ms,
         },
         model_version,
+        waveform: waveform_obj,
     })
 }
 

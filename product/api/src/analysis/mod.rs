@@ -16,6 +16,9 @@
 
 mod factors;
 mod timeline;
+pub mod waveform;
+
+pub use waveform::Waveform;
 
 use std::collections::BTreeMap;
 
@@ -41,6 +44,7 @@ pub struct AnalyzeResponse {
     pub features: BTreeMap<&'static str, f64>,
     pub top_factors: Vec<TopFactor>,
     pub rationale: String,
+    pub waveform: Waveform,
     pub timings_ms: Timings,
     pub meta: AnalyzeMeta,
 }
@@ -118,9 +122,9 @@ pub struct AnalyzeMeta {
 /// Build the `/analyze` payload from an already-computed [`Analysis`].
 /// Fails only if the model that produced `analysis` isn't reachable
 /// anymore (never true in practice — `analysis` couldn't exist without a
-/// loaded model) or if a timeline re-score itself errors; `routes::analyze`
-/// turns any `Err` here into the `{"error": "..."}` envelope, since this
-/// route is not scored (ADR-013).
+/// loaded model), if a timeline re-score itself errors, or if waveform
+/// extraction fails; `routes::analyze` turns any `Err` here into the
+/// `{"error": "..."}` envelope, since this route is not scored (ADR-013).
 pub fn build(state: &SharedState, analysis: &Analysis) -> Result<AnalyzeResponse> {
     let shared_model = state.model.as_ref().context("no model loaded")?;
     let meta: Meta = {
@@ -150,6 +154,8 @@ pub fn build(state: &SharedState, analysis: &Analysis) -> Result<AnalyzeResponse
     let top_factors = factors::top_factors(&analysis.features, &meta);
     let rationale = factors::rationale(&top_factors, &analysis.turn_counts);
 
+    let waveform = analysis.waveform.clone();
+
     let timings_ms = Timings {
         decode: analysis.timings_ms.decode,
         vad: analysis.timings_ms.vad,
@@ -176,6 +182,7 @@ pub fn build(state: &SharedState, analysis: &Analysis) -> Result<AnalyzeResponse
         features,
         top_factors,
         rationale,
+        waveform,
         timings_ms,
         meta: meta_out,
     })
