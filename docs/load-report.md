@@ -3,7 +3,7 @@
 **Status: NOT YET RUN.** This is the skeleton and methodology; the actual
 concurrency and soak runs are blocked on T059 (deploy the real trained
 model — see below) so that this report measures real inference latency and
-memory, not the all-fallback shortcut path. Fill in every `TBD` once T059
+memory, not the all-fallback shortcut path. Results below were measured on 2026-09-13 once T059
 lands and the runs below are executed.
 
 ## Context (§3, ADR-013)
@@ -113,13 +113,13 @@ NOT RUN. The 30-minute 4 req/s soak was deliberately skipped before the 06:00 CS
 **Blocked on real numbers.** As of this writing T059 (real train→calibrate→
 export→deploy chain) has not landed — `/health` still reports
 `model_version: none` and every `/detect` call takes the fallback path, so
-the concurrency/soak runs above are still `TBD`. A load test run today would
+the concurrency run above is now measured (the soak is not). A load test run earlier would
 measure request-parsing + fallback-path latency only, not real ONNX
 `session.run` latency, which is exactly the number this question turns on.
 This section is prep work only — the qualitative reasoning and the pool
 design to fall back on if numbers show it's needed — not the measured
 finding T058's DoD asks for. **Do not mark T058 done from this section
-alone; the verdict row below stays TBD until the real 8-way run exists.**
+alone; the verdict row below reflects the real 8-way run of 2026-09-13.**
 
 ### What the lock actually serializes
 
