@@ -1578,11 +1578,11 @@ tasks:
   - T025
   - T026
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T040
   claimed_at: '2026-09-13T01:18:47+00:00'
-  done_at: null
+  done_at: '2026-09-13T01:24:12+00:00'
 - id: T041
   title: '[Paul] Snapshot, cold standby procedure, contingency runbook (NFR-002, §18.3)'
   description: '(a) BUILD — Take a Vultr snapshot of the instance after the real-model
