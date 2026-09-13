@@ -1154,11 +1154,11 @@ tasks:
   depends_on:
   - T026
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: paul-cursor-agent
   branch: task/T027
   claimed_at: '2026-09-13T01:06:14+00:00'
-  done_at: null
+  done_at: '2026-09-13T01:30:12+00:00'
 - id: T028
   title: '[Paul] POST /analyze superset: timeline, events, top factors, rationale,
     meta (FR-009, ADR-013)'
