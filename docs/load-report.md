@@ -97,3 +97,78 @@ once run.
 - T058 (`Mutex<Model>` vs a Session pool) explicitly depends on these
   numbers — do not close T040 without also updating T058's owner that data
   is ready to analyze.
+
+## T058 — Mutex\<Model\> vs Session pool: status and qualitative analysis
+
+**Blocked on real numbers.** As of this writing T059 (real train→calibrate→
+export→deploy chain) has not landed — `/health` still reports
+`model_version: none` and every `/detect` call takes the fallback path, so
+the concurrency/soak runs above are still `TBD`. A load test run today would
+measure request-parsing + fallback-path latency only, not real ONNX
+`session.run` latency, which is exactly the number this question turns on.
+This section is prep work only — the qualitative reasoning and the pool
+design to fall back on if numbers show it's needed — not the measured
+finding T058's DoD asks for. **Do not mark T058 done from this section
+alone; the verdict row below stays TBD until the real 8-way run exists.**
+
+### What the lock actually serializes
+
+Confirmed by reading `product/api/src/state.rs` and
+`product/api/src/inference/model.rs`:
+
+- `AppState.model` is `Arc<Mutex<Model>>` (`state.rs:14`) purely because
+  `ort`'s `Session::run` takes `&mut self` — `Arc<Model>` alone doesn't
+  compile against concurrent handlers at all, so this was never a capacity
+  choice.
+- The `Session` is built with `.with_intra_threads(1)` (`model.rs:79-82`):
+  each `session.run` call is already single-threaded internally, so the
+  Mutex isn't fighting the session for CPU cores — it's just enforcing that
+  only one `run` call is in flight at a time.
+- `Model::score` (`model.rs:93-118`) does exactly three things under the
+  lock once acquired: build a `(1, 23)` f32 array from the feature vector,
+  call `session.run`, and apply the Platt sigmoid + threshold to the
+  scalar output. No I/O, no `.await` inside the critical section — the lock
+  is held for the duration of one small matmul only, consistent with the
+  comment at `state.rs:9-13`.
+- Everything upstream of scoring (WAV decode, VAD, feature extraction) is
+  per-request state with no shared lock, so it already parallelizes freely
+  across concurrent `/detect` handlers; only the final `score()` call
+  queues.
+
+### What would make a pool necessary vs not
+
+- **Mutex sufficient** if per-call `session.run` time stays close to the
+  ~50 ms NFR-001 budget assumed at T022 time. At 8-way concurrency the
+  worst-case queuing for the last request in line is ~8×(actual run time),
+  so as long as real run time is on that order, queuing stays well inside
+  the 5000 ms p99 threshold and the 1.3 s internal budget.
+- **Pool needed** only if the real exported model's `session.run` turns out
+  meaningfully slower than assumed (bigger tree ensemble, cold cache
+  effects, etc.) such that 8×run-time approaches or exceeds the 5000 ms
+  threshold, or if `/metrics`' server-side p95/p99 for the `detect` route
+  shows queuing time (not decode/VAD/feature time) as the dominant
+  contributor once T040 actually runs.
+- If the numbers do call for a pool: a fixed-size `Vec<Mutex<Model>>` (or
+  `Vec<Arc<Mutex<Model>>>`) of N `Session`s built from the same ONNX file
+  at boot, checked out round-robin or via a semaphore — same NFR-007
+  ready≤5s startup cost as today since all N load at boot, none of the
+  per-request reload or per-thread unbounded pitfalls the task description
+  rules out. `Model::load` already takes a `&Path` and returns an owned
+  `Model`, so building N of them at startup is a small change localized to
+  wherever `AppState` is constructed — no change to `Model::score`'s
+  signature or the feature contract.
+
+### Verdict
+
+| Question | Answer |
+|---|---|
+| Mutex sufficient or pool needed? | **TBD — depends on T059 + a real T040 run** |
+| Measured 8-way p99 | TBD |
+| Queuing time vs total latency (from `/metrics`) | TBD |
+
+Next step once T059 lands and T040's concurrency run is re-executed against
+the real model: fill in the verdict row above from the actual
+`docs/load-report-concurrency.json` output. If a pool turns out to be
+needed, file it as its own follow-up via `add_task.py` (scope:
+`product/api/src/inference/model.rs`, `product/api/src/state.rs`) rather
+than expanding this task's scope further.
