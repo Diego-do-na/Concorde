@@ -1,0 +1,52 @@
+{
+ "summary": {
+  "calls": 5,
+  "answered": 5,
+  "errors": 0,
+  "accuracy": 1.0,
+  "tpr_synthetic": 1.0,
+  "tnr_human": 1.0,
+  "mean_latency_s": 0.5097150414,
+  "max_latency_s": 0.5831500409999999,
+  "balanced_accuracy": 1.0,
+  "auc": 1.0,
+  "brier": 0.005589989999999998
+ },
+ "results": [
+  {
+   "is_synthetic": true,
+   "confidence": 0.9211,
+   "latency_s": 0.5831500409999999,
+   "call_id": "call_925ba94f05a4",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.9203,
+   "latency_s": 0.45246645800000007,
+   "call_id": "call_74b20933dd43",
+   "label": "human"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9064,
+   "latency_s": 0.49147916700000005,
+   "call_id": "call_fa9e18dd83dd",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": true,
+   "confidence": 0.9663,
+   "latency_s": 0.5247699999999997,
+   "call_id": "call_8d75a71e6126",
+   "label": "synthetic"
+  },
+  {
+   "is_synthetic": false,
+   "confidence": 0.926,
+   "latency_s": 0.496709541,
+   "call_id": "call_fb1405943fed",
+   "label": "human"
+  }
+ ]
+}
