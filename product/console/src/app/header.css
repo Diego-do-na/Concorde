@@ -1,23 +1,170 @@
-.shell-header{
-  border-bottom: 1px solid #e6e6e6;
-  padding: 10px 16px;
-  background: white;
-}
-.brand-row{display:flex;align-items:center;justify-content:space-between;gap:12px}
-.wordmark{display:flex;flex-direction:column}
-.brand{font-weight:600;font-size:13px;letter-spacing:0.14em}
-.product{font-size:11px;color:#888}
-.left-chips{display:flex;align-items:center;gap:8px}
-.chip{background:#f5f5f7;padding:4px 8px;border-radius:6px;font-family:ui-monospace, SFMono-Regular, Menlo, monospace}
-.health{display:flex;align-items:center;gap:6px}
-.health-dot{width:10px;height:10px;border-radius:50%;display:inline-block}
-.health-dot.online{background:green}
-.health-dot.offline{background:orange}
-.health-label{font-size:12px;color:#444}
-.right-chips{display:flex;align-items:center;gap:8px}
-.dep-chip{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;border:1px solid transparent}
-.dep-chip.degraded{border-color:orange;background:#fff7ee}
-.dep-chip .dot{width:8px;height:8px;border-radius:50%;display:inline-block}
-.dot.green{background:green}.dot.blue{background:steelblue}.dot.gray{background:gray}
-.dep-chip .label{font-weight:600}.dep-chip .state{margin-left:6px;color:#333}
+/*
+ * Service-health header (§11, FR-012). Sticky: the model version, the live
+ * p95 and the feed state have to stay on screen while an operator scrolls a
+ * long call table — that is the whole point of a health header.
+ *
+ * Every value here comes from a token in theme/global.css. This file used to
+ * be hardcoded light-mode (white background, `green`/`orange` keywords) and
+ * was the one element visible on all four views.
+ */
 
+.shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: var(--header-gap);
+  padding: var(--header-padding);
+  background: var(--surface-header);
+  border-bottom: 1px solid var(--line);
+}
+
+/* ── wordmark ─────────────────────────────────────────────────────────── */
+
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: var(--header-gap);
+  width: 100%;
+}
+
+.wordmark {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+  padding-right: var(--header-gap);
+  border-right: 1px solid var(--line);
+  flex: 0 0 auto;
+}
+.wordmark .brand {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--ink);
+}
+.wordmark .product {
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+
+/* ── health chips ─────────────────────────────────────────────────────── */
+
+.left-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.left-chips::-webkit-scrollbar { display: none; }
+
+.chip {
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  background: var(--surface-chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-panel);
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  color: var(--ink2);
+  white-space: nowrap;
+}
+.chip .mono {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* ── overall status ───────────────────────────────────────────────────── */
+/* Colour is paired with a text label (OK / DEGRADED) so the state survives
+   both a monochrome screen and a colour-vision deficiency. */
+
+.health {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 3px 8px;
+  border-radius: var(--radius-panel);
+  border: 1px solid transparent;
+}
+.health-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-dot);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+.health-dot.online { background: var(--verified-color); }
+.health-dot.offline { background: var(--review-color); }
+
+.health-label {
+  font-size: var(--type-label-size);
+  letter-spacing: var(--type-label-letter-spacing);
+  font-weight: 600;
+  color: var(--ink2);
+}
+.health:has(.health-dot.online) { background: var(--verified-wash); border-color: var(--verified-dim); }
+.health:has(.health-dot.online) .health-label { color: var(--verified-color); }
+.health:has(.health-dot.offline) { background: var(--review-wash); border-color: var(--review-dim); }
+.health:has(.health-dot.offline) .health-label { color: var(--review-color); }
+
+/* ── feed transport (WS / POLLING / OFFLINE) ──────────────────────────── */
+
+.right-chips {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.dep-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: var(--radius-panel);
+  border: 1px solid var(--chip-border);
+  background: var(--surface-chip-bg);
+  font-size: var(--type-label-size);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.dep-chip.degraded {
+  border-color: var(--review-dim);
+  background: var(--review-wash);
+}
+.dep-chip .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: var(--radius-dot);
+  display: inline-block;
+  flex: 0 0 auto;
+}
+/* WS is the healthy transport; POLLING is the working fallback, which is a
+   normal state and must not be coloured as a fault; OFFLINE is degraded. */
+.dep-chip .dot.green { background: var(--verified-color); }
+.dep-chip .dot.blue  { background: var(--link); }
+.dep-chip .dot.gray  { background: var(--review-color); }
+
+.dep-chip .label {
+  color: var(--dim-label);
+  text-transform: uppercase;
+  letter-spacing: var(--type-label-letter-spacing);
+}
+.dep-chip .state {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--ink);
+}
+.dep-chip.degraded .state { color: var(--review-color); }
+
+@media (max-width: 900px) {
+  .wordmark { border-right: 0; padding-right: 0; }
+  .wordmark .product { display: none; }
+}

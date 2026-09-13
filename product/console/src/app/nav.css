@@ -1,6 +1,77 @@
-.shell-nav{display:flex;padding:8px 12px;gap:8px;background:#fafafa}
-.tab{padding:9px 14px;border-radius:6px;text-decoration:none;color:#222}
-.tab:hover{background: oklch(0.245 0.016 252)}
-.tab.active{border-bottom:2px solid #111}
-.tab:focus{outline:2px solid #6fa8ff}
+/*
+ * View tabs (§11, FR-012). Sticks directly under the health header so both
+ * stay pinned together.
+ *
+ * The active tab is marked by an underline in the accent *and* a brighter
+ * ink weight — an underline alone disappears at the low contrast this dark
+ * palette runs at, and colour alone would be the only carrier of state.
+ */
 
+.shell-nav {
+  position: sticky;
+  top: 41px; /* height of .shell-header at its 10px/20px padding */
+  z-index: 19;
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+  padding: 0 12px;
+  background: var(--surface-panel-alt);
+  border-bottom: 1px solid var(--line);
+}
+
+.shell-nav .tab {
+  position: relative;
+  padding: var(--nav-tab);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+  color: var(--muted);
+  text-decoration: none;
+  border-radius: 0;
+  transition: color var(--t-fast) var(--ease), background var(--t-fast) var(--ease);
+}
+
+.shell-nav .tab:hover {
+  background: var(--surface-hover);
+  color: var(--ink2);
+}
+
+.shell-nav .tab.active {
+  color: var(--ink);
+  background: var(--surface-panel);
+}
+
+/* Drawn on a pseudo-element rather than as a border so the tab does not
+   shift by 2px when it becomes active. */
+.shell-nav .tab.active::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--link);
+}
+
+.shell-nav .tab:focus-visible {
+  outline: 2px solid var(--focus-outline);
+  outline-offset: -2px;
+}
+
+/* A tab with nowhere to go is shown, not hidden: the console's tab set is
+   part of how the product explains itself, and a tab that vanishes and
+   reappears as calls arrive is more confusing than one that is plainly
+   unavailable. */
+.shell-nav .tab.is-disabled {
+  color: var(--dim-label);
+  opacity: 0.5;
+  cursor: default;
+  display: flex;
+  align-items: center;
+  padding: var(--nav-tab);
+  font-size: var(--type-label-size);
+  font-weight: 500;
+  letter-spacing: var(--type-label-letter-spacing);
+  text-transform: uppercase;
+}
