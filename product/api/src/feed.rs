@@ -42,6 +42,12 @@ pub struct Feed {
 struct FeedInner {
     ring: VecDeque<FeedEvent>,
     analyses: HashMap<String, Analysis>,
+    /// Insertion order of `analyses` keys (oldest first, may hold stale
+    /// duplicates for ids pushed more than once). Eviction uses THIS, not
+    /// the event ring: a call_id re-sent later (val replays, demos) has an
+    /// old ring event, and evicting by "oldest ring event still in the map"
+    /// deleted the freshly retained analysis instead of the oldest one.
+    analysis_order: VecDeque<String>,
     counter: u64,
     ring_capacity: usize,
     analyses_capacity: usize,
@@ -54,6 +60,7 @@ impl Feed {
             inner: Mutex::new(FeedInner {
                 ring: VecDeque::with_capacity(ring_capacity),
                 analyses: HashMap::new(),
+                analysis_order: VecDeque::new(),
                 counter: 0,
                 ring_capacity,
                 analyses_capacity,
@@ -105,26 +112,31 @@ impl Feed {
 
         // retain full analysis for this id (bounded)
         inner.analyses.insert(id.clone(), analysis.clone());
-        // Evict retained analyses oldest-first. Every iteration MUST remove
-        // exactly one entry: the previous version looked only at
-        // `ring.front()` (which stays in the ring long after its analysis
-        // was evicted, since the ring is 10x larger), so once that id was
-        // gone `remove` became a no-op and the loop spun forever while
-        // holding this mutex -- the server hung on the 51st distinct call.
+        inner.analysis_order.push_back(id.clone());
+        // Evict the analyses that were retained longest ago. Every iteration
+        // pops exactly one queue entry, so the loop always terminates (the
+        // first version of this loop spun forever on the 51st call; the
+        // second evicted re-sent ids by their oldest ring event).
         {
-            let FeedInner { ring, analyses, analyses_capacity, .. } = &mut *inner;
+            let FeedInner { analyses, analysis_order, analyses_capacity, .. } = &mut *inner;
             while analyses.len() > *analyses_capacity {
-                let victim = ring
-                    .iter()
-                    .map(|e| &e.id)
-                    .find(|id| analyses.contains_key(*id))
-                    .cloned()
-                    .or_else(|| analyses.keys().next().cloned());
-                match victim {
-                    Some(v) => {
-                        analyses.remove(&v);
+                match analysis_order.pop_front() {
+                    Some(old) => {
+                        // stale duplicate: a newer push of the same id is still queued
+                        if analysis_order.iter().any(|x| *x == old) {
+                            continue;
+                        }
+                        analyses.remove(&old);
                     }
-                    None => break,
+                    None => {
+                        // queue exhausted (should not happen): drop an arbitrary key
+                        match analyses.keys().next().cloned() {
+                            Some(k) => {
+                                analyses.remove(&k);
+                            }
+                            None => break,
+                        }
+                    }
                 }
             }
         }
@@ -205,6 +217,39 @@ mod tests {
         assert!(feed.get_analysis("call_009").is_none());
         assert!(feed.get_analysis("call_010").is_some(), "newest 50 must be retained");
         assert!(feed.get_analysis("call_059").is_some());
+    }
+
+    /// A call analysed twice (POST /detect then POST /analyze with the same
+    /// call_id) must stay retained: the second push overwrites the map entry
+    /// and adds a second ring event, and neither may evict it.
+    #[test]
+    fn double_push_of_the_newest_id_stays_retained() {
+        let feed = Feed::new(500, 50, 32);
+        let a = dummy_analysis();
+        for i in 0..60 {
+            feed.push(Some(format!("call_{i:03}")), &a);
+        }
+        feed.push(Some("call_new".to_string()), &a);
+        feed.push(Some("call_new".to_string()), &a);
+        assert!(feed.get_analysis("call_new").is_some(), "double-pushed newest id was evicted");
+        assert!(feed.get_analysis("call_059").is_some());
+        let feed2 = Feed::new(500, 50, 32);
+        for i in 0..60 {
+            feed2.push(Some(format!("c{i}")), &a);
+            feed2.push(Some(format!("c{i}")), &a);
+        }
+        assert!(feed2.get_analysis("c59").is_some(), "double push pattern evicts the newest");
+        // The production pattern: a val call_id first seen long ago is re-sent.
+        let feed3 = Feed::new(500, 50, 32);
+        for i in 0..120 {
+            feed3.push(Some(format!("v{i}")), &a);
+        }
+        assert!(feed3.get_analysis("v0").is_none());
+        feed3.push(Some("v0".to_string()), &a); // re-send an old id
+        feed3.push(Some("v0".to_string()), &a); // /detect then /analyze
+        assert!(feed3.get_analysis("v0").is_some(), "re-sent old id must be retained (it is the newest analysis)");
+        assert!(feed3.get_analysis("v119").is_some());
+        assert!(feed3.get_analysis("v70").is_none(), "the oldest retained analysis (v70) must be the one evicted");
     }
 
     /// Ring rollover: once the ring itself drops old events, eviction must
