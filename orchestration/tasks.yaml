@@ -2102,10 +2102,10 @@ tasks:
   depends_on:
   - T022
   suggested_model: haiku
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T052
+  claimed_at: '2026-09-13T00:59:36+00:00'
   done_at: null
 - id: T053
   title: '[Diego] Acoustic sub-signal as third vote (COULD, only if the core is green
