@@ -26,7 +26,15 @@ export default function SignalBreakdown({ analysis }: { analysis: Analysis }) {
       {ROWS.map((r) => {
         const s = analysis.signals?.[r.key];
         const available = isAvailable(analysis, r.key) && s != null;
-        const rawValue = available && typeof s?.value === "number" ? s.value : typeof s?.confidence === "number" ? s.confidence : null;
+        const rawValue = !available
+          ? null
+          : typeof s === "number"
+            ? s
+            : typeof (s as any)?.value === "number"
+              ? (s as any).value
+              : typeof (s as any)?.confidence === "number"
+                ? (s as any).confidence
+                : null;
 
         const isDegraded = !available || rawValue == null;
 

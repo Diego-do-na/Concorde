@@ -3,10 +3,11 @@ export const USE_MOCKS = (typeof import.meta !== 'undefined' && (import.meta as 
 
 // TypeScript types mirroring spec §8.2 (plus waveform enrichment)
 export type Verdict = { is_synthetic: boolean; confidence: number; threshold: number };
+export type SignalValue = number | Record<string, any>;
 export type Signals = {
-  behavioral: Record<string, any>;
-  semantic: Record<string, any> | null;
-  acoustic: Record<string, any> | null;
+  behavioral: SignalValue;
+  semantic: SignalValue | null;
+  acoustic: SignalValue | null;
 };
 export type Degraded = { semantic_available: boolean; acoustic_available: boolean };
 export type TimelinePoint = { t: number; confidence: number };
@@ -36,10 +37,12 @@ export type Analysis = {
 // zod schemas for runtime validation (used in tests)
 import { z } from 'zod';
 export const VerdictZ = z.object({ is_synthetic: z.boolean(), confidence: z.number(), threshold: z.number() });
+// §8.2 sends numbers ("behavioral": 0.91); fixtures may send objects.
+const SignalValueZ = z.union([z.number(), z.record(z.any())]);
 export const SignalsZ = z.object({
-  behavioral: z.record(z.any()),
-  semantic: z.nullable(z.record(z.any())),
-  acoustic: z.nullable(z.record(z.any())),
+  behavioral: SignalValueZ,
+  semantic: z.nullable(SignalValueZ),
+  acoustic: z.nullable(SignalValueZ),
 });
 export const DegradedZ = z.object({ semantic_available: z.boolean(), acoustic_available: z.boolean() });
 export const TimelineZ = z.array(z.object({ t: z.number(), confidence: z.number() }));
@@ -190,7 +193,7 @@ export function feedEventToAnalysis(e: FeedEvent): Analysis & { ts?: number } {
     id: e.id,
     ts: e.ts,
     verdict: { is_synthetic: e.is_synthetic, confidence: e.confidence, threshold: SHIPPED_THRESHOLD },
-    signals: { behavioral: { available: e.signals.behavioral }, semantic: e.signals.semantic ? { available: true } : null, acoustic: e.signals.acoustic ? { available: true } : null },
+    signals: { behavioral: e.is_synthetic ? e.confidence : 1 - e.confidence, semantic: e.signals.semantic ? { available: true } : null, acoustic: e.signals.acoustic ? { available: true } : null },
     degraded: { semantic_available: !!e.signals.semantic, acoustic_available: !!e.signals.acoustic },
     timeline: [],
     turns: { caller: [], agent: [] },
@@ -245,8 +248,8 @@ export function adaptRetained(id: string, raw: any): Analysis {
     id,
     verdict: { is_synthetic: raw.verdict.is_synthetic, confidence: raw.verdict.confidence, threshold: SHIPPED_THRESHOLD },
     signals: {
-      behavioral: { p_synthetic: raw.verdict.p_synthetic },
-      semantic: sem.available ? { invention_score: sem.invention_score, answer_type: sem.answer_type } : null,
+      behavioral: raw.verdict.p_synthetic,
+      semantic: sem.available ? sem.invention_score : null,
       acoustic: null,
     },
     degraded: { semantic_available: !!sem.available, acoustic_available: false },
