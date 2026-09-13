@@ -105,12 +105,27 @@ impl Feed {
 
         // retain full analysis for this id (bounded)
         inner.analyses.insert(id.clone(), analysis.clone());
-        while inner.analyses.len() > inner.analyses_capacity {
-            // evict oldest by inspecting ring front (best-effort)
-            if let Some(old_id) = inner.ring.front().map(|e| e.id.clone()) {
-                inner.analyses.remove(&old_id);
-            } else {
-                break;
+        // Evict retained analyses oldest-first. Every iteration MUST remove
+        // exactly one entry: the previous version looked only at
+        // `ring.front()` (which stays in the ring long after its analysis
+        // was evicted, since the ring is 10x larger), so once that id was
+        // gone `remove` became a no-op and the loop spun forever while
+        // holding this mutex -- the server hung on the 51st distinct call.
+        {
+            let FeedInner { ring, analyses, analyses_capacity, .. } = &mut *inner;
+            while analyses.len() > *analyses_capacity {
+                let victim = ring
+                    .iter()
+                    .map(|e| &e.id)
+                    .find(|id| analyses.contains_key(*id))
+                    .cloned()
+                    .or_else(|| analyses.keys().next().cloned());
+                match victim {
+                    Some(v) => {
+                        analyses.remove(&v);
+                    }
+                    None => break,
+                }
             }
         }
 
@@ -155,3 +170,53 @@ impl Feed {
 }
 
 
+
+#[cfg(test)]
+mod tests {
+    use super::Feed;
+    use crate::pipeline::{Analysis, TimingsMs, TurnCounts, Verdict};
+
+    fn dummy_analysis() -> Analysis {
+        Analysis {
+            duration_s: 1.0,
+            turns: vec![],
+            turn_counts: TurnCounts { caller: 1, agent: 1 },
+            events: vec![],
+            features: vec![],
+            verdict: Verdict { p_synthetic: 0.5, is_synthetic: false, confidence: 0.75 },
+            timings_ms: TimingsMs { decode: 1.0, vad: 1.0, features: 1.0, inference: 1.0, total: 4.0 },
+            model_version: Some("dummy".to_string()),
+            waveform: crate::analysis::waveform::Waveform { caller: vec![], agent: vec![], bucket_ms: 50 },
+            semantic: crate::semantic::SemanticOutcome::disabled(0.5),
+        }
+    }
+
+    /// Regression: 60 distinct call_ids with analyses_capacity 50 used to
+    /// spin forever on the 51st push (see the comment in `push`).
+    #[test]
+    fn sixty_distinct_pushes_with_capacity_fifty_terminate_and_evict_oldest() {
+        let feed = Feed::new(500, 50, 32);
+        let a = dummy_analysis();
+        for i in 0..60 {
+            feed.push(Some(format!("call_{i:03}")), &a);
+        }
+        assert_eq!(feed.recent(1000).len(), 60);
+        assert!(feed.get_analysis("call_000").is_none(), "oldest analysis must be evicted");
+        assert!(feed.get_analysis("call_009").is_none());
+        assert!(feed.get_analysis("call_010").is_some(), "newest 50 must be retained");
+        assert!(feed.get_analysis("call_059").is_some());
+    }
+
+    /// Ring rollover: once the ring itself drops old events, eviction must
+    /// still make progress (fallback to an arbitrary key).
+    #[test]
+    fn ring_rollover_still_terminates() {
+        let feed = Feed::new(10, 5, 32);
+        let a = dummy_analysis();
+        for i in 0..100 {
+            feed.push(Some(format!("c{i}")), &a);
+        }
+        assert_eq!(feed.recent(1000).len(), 10);
+        assert!(feed.get_analysis("c99").is_some());
+    }
+}
