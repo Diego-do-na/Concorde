@@ -69,7 +69,7 @@ pub fn smooth(raw: &[bool], params: &VadParams) -> Vec<(f32, f32)> {
                 consec += 1;
                 if consec >= off_frames {
                     // end speech at frame index = i - off_frames + 1 (start of off run)
-                    let end_frame = i - off_frames + 1;
+                    let end_frame = (i + 1).saturating_sub(off_frames);
                     if let Some(s) = cur_start_frame.take() {
                         segments.push((s, end_frame));
                     }
@@ -82,7 +82,7 @@ pub fn smooth(raw: &[bool], params: &VadParams) -> Vec<(f32, f32)> {
                 consec += 1;
                 if consec >= on_frames {
                     // start at first frame of the run
-                    let start_frame = i - on_frames + 1;
+                    let start_frame = (i + 1).saturating_sub(on_frames);
                     cur_start_frame = Some(start_frame);
                     state_active = true;
                     consec = 0;

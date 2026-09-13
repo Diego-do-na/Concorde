@@ -9,7 +9,7 @@ pub async fn health(State(state): State<Arc<AppState>>) -> (StatusCode, Json<ser
     let model_version = state
         .model
         .as_ref()
-        .map(|m| m.meta.model_version.clone())
+        .map(|m| m.lock().expect("model mutex poisoned").meta.model_version.clone())
         .unwrap_or_else(|| "none".to_string());
 
     let body = json!({

@@ -25,7 +25,7 @@ thiserror = "1.0"
 base64 = "0.21"
 bytes = "1.4"
 ort = "2.0.0-rc.13"
-ndarray = "0.15"
+ndarray = "0.17"
 multer = "3.1"
 futures-core = "0.3"
 

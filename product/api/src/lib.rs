@@ -6,6 +6,7 @@ pub mod audio;
 pub mod features;
 pub mod inference;
 pub mod analysis;
+pub mod pipeline;
 pub mod semantic;
 pub mod storage;
 pub mod metrics;

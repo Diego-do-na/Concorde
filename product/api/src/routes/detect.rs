@@ -1,19 +1,25 @@
 //! `POST /detect` — the only scored artifact (§8.1, ADR-013, ADR-006).
 //!
 //! Handler shape: parse the request body (FR-003, T007) into a WAV payload,
-//! then compute a verdict — today a placeholder, later the real
-//! feature-extraction + ONNX pipeline (T014/T019/T020) — and run the whole
+//! run it through the real pipeline ([`crate::pipeline::analyze_bytes`] —
+//! decode → VAD → features → ONNX, T009/T011/T014/T020), and run the whole
 //! thing through [`crate::http::failsafe::run_failsafe`] so a panic, a
-//! timeout, or a parse failure all become the fallback verdict at HTTP 200
-//! instead of ever surfacing as a 5xx to the judge.
+//! timeout, a parse failure, or a pipeline failure all become the fallback
+//! verdict at HTTP 200 instead of ever surfacing as a 5xx to the judge.
+//! Exactly one structured `event = "detect"` JSON log line is emitted per
+//! request — success or failure — carrying request/timing/verdict metadata
+//! but never audio or transcripts (NFR-008); a failure additionally gets
+//! `run_failsafe`'s own `event = "incident"` line.
 
 use axum::extract::State;
 use axum::http::HeaderMap;
 use axum::response::IntoResponse;
 use bytes::Bytes;
+use tracing::info;
 
 use crate::http::failsafe::{self, DetectFailure, DetectResponse, FailsafeContext};
 use crate::http::parse::{self, ParsedRequest};
+use crate::pipeline::{self, Analysis};
 use crate::state::SharedState;
 
 pub async fn detect(
@@ -22,23 +28,48 @@ pub async fn detect(
     body: Bytes,
 ) -> impl IntoResponse {
     let ctx = FailsafeContext::new(body.len(), state.config.handler_timeout_ms, state.config.strict);
+    let request_id = ctx.request_id.clone();
+    let byte_size = body.len();
 
     failsafe::run_failsafe(ctx, async move {
-        match parse::extract_audio(&headers, body).await {
-            Ok(parsed) => Ok(placeholder_verdict(&parsed)),
-            Err(e) => Err(DetectFailure::new(e.to_string(), None)),
-        }
+        let parsed: ParsedRequest = parse::extract_audio(&headers, body)
+            .await
+            .map_err(|e| DetectFailure::new(e.to_string(), None))?;
+        let call_id = parsed.call_id.clone();
+
+        let analysis: Analysis = pipeline::analyze_bytes(&state, &parsed.wav)
+            .map_err(|e| DetectFailure::new(e.to_string(), call_id.clone()))?;
+
+        log_detect(&request_id, call_id.as_deref(), byte_size, &analysis);
+
+        Ok(DetectResponse::new(analysis.verdict.is_synthetic, analysis.verdict.confidence))
     })
     .await
 }
 
-/// Placeholder verdict until T014 (features) / T019 (ONNX inference) land.
-/// Computed independently of [`failsafe::fallback`] — today it happens to
-/// be the same shape (`is_synthetic: false, confidence: 0.50`), but the two
-/// must not be conflated: this one represents "no model yet", the other
-/// "something went wrong".
-fn placeholder_verdict(_parsed: &ParsedRequest) -> DetectResponse {
-    DetectResponse::new(false, 0.50)
+/// The one `event = "detect"` log line per successful request (§ "Never
+/// emit an unmarked degradation" — failures instead go through
+/// `run_failsafe`'s `event = "incident"` line, never both).
+fn log_detect(request_id: &str, call_id: Option<&str>, byte_size: usize, analysis: &Analysis) {
+    info!(
+        event = "detect",
+        request_id,
+        call_id = call_id.unwrap_or(""),
+        bytes = byte_size,
+        duration_s = analysis.duration_s,
+        turn_count_caller = analysis.turn_counts.caller,
+        turn_count_agent = analysis.turn_counts.agent,
+        decode_ms = analysis.timings_ms.decode,
+        vad_ms = analysis.timings_ms.vad,
+        features_ms = analysis.timings_ms.features,
+        inference_ms = analysis.timings_ms.inference,
+        total_ms = analysis.timings_ms.total,
+        p_synthetic = analysis.verdict.p_synthetic,
+        is_synthetic = analysis.verdict.is_synthetic,
+        confidence = analysis.verdict.confidence,
+        model_version = analysis.model_version.as_deref().unwrap_or("none"),
+        "detect handler completed"
+    );
 }
 
 #[cfg(test)]

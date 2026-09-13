@@ -72,6 +72,53 @@ Environment variables (defaults and rationale)
 - `CONCORDE_ANALYZE_SEMANTIC_TIMEOUT_MS` — default `8000` ms.
 - `CONCORDE_WHISPER_MODEL_PATH`, `CONCORDE_WHISPER_THREADS`, `CONCORDE_ASR_MAX_CONCURRENT`, `CONCORDE_SEMANTIC_FUSION_PATH`, `TIGERDATA_URL` — other optional knobs.
 #
+The `/detect` pipeline (T022)
+- `pipeline::analyze_bytes(state, bytes) -> Result<Analysis>` is the one place decode, VAD, features, and inference are wired together; `routes::detect` calls it and reads only `Analysis::verdict`, still inside `http::failsafe::run_failsafe` so any `Err` here (undecodable WAV, no model loaded, an ONNX runtime error) becomes the ADR-006 fallback verdict at HTTP 200, never this function's own concern.
+
+  ```text
+  request bytes
+      │
+      ▼
+  http::parse::extract_audio        (FR-003: 5 tolerated shapes -> WAV bytes)
+      │
+      ▼
+  pipeline::analyze_bytes
+      ├─ decode   -- hound WAV header peek (sample_rate, duration_s)
+      ├─ vad      -- audio::vad::detect_turns (own VAD, ADR-003/FR-004; ch0=caller, ch1=agent)
+      ├─ features -- features::extract (fc-1, F-01..F-22, frozen order)
+      └─ inference-- inference::model::Model::score (ONNX + Platt calibration, §8.4)
+      │
+      ▼
+  Analysis { turns, events, features, verdict, timings_ms, model_version }
+      │
+      ▼
+  routes::detect -- DetectResponse::new(verdict.is_synthetic, verdict.confidence)
+  ```
+
+  Degenerate calls (no caller turns, a single active channel, near-silent audio) are **not** routed to the fallback: the fc-1 extractor defines a value for every feature on any input (see `features::mod`'s `fully_empty_call_is_all_zero` test), so they still get scored by the real model. Only bytes that don't parse as WAV at all, or a missing/broken model, are pipeline failures.
+
+  Per-stage timing budget (NFR-001, internal — not enforced by the judge, which allows 30s/call including network):
+
+  | stage      | budget   |
+  |------------|----------|
+  | decode     | 800 ms   |
+  | vad        | 400 ms   |
+  | features   | ~free    |
+  | inference  | 50 ms    |
+  | **total**  | **1.3 s**|
+
+  Exactly one structured `event = "detect"` log line is emitted per successful request (`request_id`, `call_id`, `bytes`, `duration_s`, turn counts, the timings above, `p_synthetic`, the verdict, `model_version`) — never audio or transcripts (NFR-008). A failed request instead gets `run_failsafe`'s own `event = "incident"` line.
+
+  Canonical smoke test — Altur's own scorer, run against a live server (`cargo run --bin concorde`, with `CONCORDE_MODEL_PATH` pointed at a real exported model):
+
+  ```bash
+  python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py \
+    --url http://127.0.0.1:8080/detect --split val --n 0 \
+    --out product/ml/data/val_check_local.json
+  ```
+
+  Expect `answered: 71`, `errors: 0`, `balanced_accuracy` clearly above 0.5 and within ±0.01 of `product/ml/train/REPORT.md`, `auc`/`brier` populated, and `max_latency_s` well under 30. `cargo test` (including `tests/detect_e2e.rs`, which exercises the same router against the committed dummy fc-1 fixture model) is the fast, dataset-free proxy for this — every later task's own verification is gated on this one passing.
+
 Running the VAD CLI (`vad-dump`)
 - Build the binary: `cargo build --bin vad-dump` (from `product/api`).
 - Usage: `cargo run --bin vad-dump -- <in.wav> [--params k=v ...]`

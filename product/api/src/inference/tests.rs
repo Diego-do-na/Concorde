@@ -7,7 +7,7 @@ mod tests {
     use std::fs;
 
     fn fixtures_dir() -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures")
     }
 
     #[test]
