@@ -3,8 +3,9 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 type Health = {
   model: string;
   contract: string;
-  p95_ms: number;
+  p95_ms: number | null;
   uptime_s: number;
+  deps?: Record<string, string>;
 }
 
 type ShellState = {
@@ -31,12 +32,31 @@ export const ShellProvider: React.FC<{children: React.ReactNode}> = ({children})
     let mounted = true;
     const doFetch = async () => {
       try {
-        const res = await fetch("/health");
-        if (!res.ok) throw new Error("health fetch failed");
-        const body = await res.json();
+        // /health has model_version + uptime; p95 lives in /metrics
+        // (routes.detect.p95_ms); the contract id lives in /version.
+        const hres = await fetch("/health");
+        if (!hres.ok) throw new Error("health fetch failed");
+        const h = await hres.json();
+        let p95: number | null = null;
+        let contract: string | null = null;
+        try {
+          const m = await (await fetch("/metrics")).json();
+          const v = m?.routes?.detect?.p95_ms;
+          if (typeof v === "number") p95 = v;
+        } catch {}
+        try {
+          const v = await (await fetch("/version")).json();
+          if (typeof v?.feature_contract === "string") contract = v.feature_contract;
+        } catch {}
         if (!mounted) return;
-        // replace or merge with previous safely
-        setHealth(prev => ({ ...(prev ?? {}), ...(body ?? {}) } as Health));
+        setHealth(prev => ({
+          ...(prev ?? {}),
+          model: h?.model_version ?? prev?.model ?? "",
+          contract: contract ?? prev?.contract ?? h?.feature_contract ?? "",
+          p95_ms: p95 ?? prev?.p95_ms ?? null,
+          uptime_s: typeof h?.uptime_s === "number" ? h.uptime_s : (prev?.uptime_s ?? 0),
+          deps: h?.deps ?? prev?.deps ?? {},
+        } as Health));
         setLastKnownAt(Date.now());
         setConnectionMode("POLLING");
       } catch (err) {

@@ -6,10 +6,7 @@ import Nav from "./app/Nav";
 import Live from "./views/live/Live";
 import DetailView from "./views/detail";
 import Demo from "./views/demo/Demo";
-
-const Placeholder: React.FC<{text:string}> = ({text}) => (
-  <div style={{padding:20}}>{text}</div>
-)
+import ExecView from "./views/exec";
 
 export default function App(){
   return (
@@ -21,7 +18,7 @@ export default function App(){
           <Routes>
             <Route path="/" element={<Live />} />
             <Route path="/calls/:id" element={<DetailView />} />
-            <Route path="/exec" element={<Placeholder text="Exec view lands with task Txxx" />} />
+            <Route path="/exec" element={<ExecView />} />
             <Route path="/demo" element={<Demo />} />
           </Routes>
         </main>

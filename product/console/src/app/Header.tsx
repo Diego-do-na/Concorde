@@ -13,7 +13,7 @@ export default function Header() {
 
   const model = health?.model ?? "—";
   const contract = health?.contract ?? "—";
-  const p95 = health ? `${health.p95_ms}ms` : "—";
+  const p95 = health && typeof health.p95_ms === "number" ? `${Math.round(health.p95_ms)}ms` : "—";
   const uptime = health ? `${Math.round((health.uptime_s||0)/3600)}h` : "—";
 
   return (

@@ -109,7 +109,10 @@ export async function getFeedAnalysis(id: string): Promise<Analysis | null> {
   const res = await fetch(`${API_BASE}/feed/analysis/${encodeURIComponent(id)}`);
   if (res.status === 404) return null;
   const body = await okJson(res);
-  return body ? AnalysisZ.parse(body) : null;
+  if (!body) return null;
+  const direct = AnalysisZ.safeParse(body);
+  if (direct.success) return direct.data;
+  return adaptRetained(id, body);
 }
 
 // /detect endpoint returns only the verdict object (two-key JSON).
@@ -157,23 +160,137 @@ export async function analyze(input: AnalyzeInput): Promise<Analysis> {
   }
 }
 
-// Simple Feed class: opens WS at /ws and falls back to polling GET /feed/recent every 3s when socket closed/errors.
-type FeedListener = (items: Analysis[]) => void;
+// ---------------------------------------------------------------------------
+// Feed: what the backend actually publishes (product/api/src/feed.rs FeedEvent)
+// ---------------------------------------------------------------------------
+// /feed/recent and the /ws stream carry FeedEvent objects, NOT the /analyze
+// superset. The first console build validated them against AnalysisZ, so
+// every real event failed validation and the monitor stayed on "No calls
+// processed yet" (found in the pre-freeze audit, 2026-09-13). Events are now
+// parsed with FeedEventZ and adapted to the Analysis shape the views render;
+// fixtures/mocks that already send Analysis-shaped rows keep working.
+export const FeedEventZ = z.object({
+  id: z.string(),
+  ts: z.number(),
+  duration_s: z.number(),
+  is_synthetic: z.boolean(),
+  confidence: z.number(),
+  latency_ms: z.number(),
+  signals: z.object({ behavioral: z.boolean(), semantic: z.nullable(z.boolean()), acoustic: z.nullable(z.boolean()) }),
+  model_version: z.nullable(z.string()).optional(),
+});
+export type FeedEvent = z.infer<typeof FeedEventZ>;
 
+// Shipped decision threshold (product/artifacts/model.onnx.meta.json). The
+// feed and the retained analysis do not carry it; only POST /analyze does.
+export const SHIPPED_THRESHOLD = 0.4198;
+
+export function feedEventToAnalysis(e: FeedEvent): Analysis & { ts?: number } {
+  return {
+    id: e.id,
+    ts: e.ts,
+    verdict: { is_synthetic: e.is_synthetic, confidence: e.confidence, threshold: SHIPPED_THRESHOLD },
+    signals: { behavioral: { available: e.signals.behavioral }, semantic: e.signals.semantic ? { available: true } : null, acoustic: e.signals.acoustic ? { available: true } : null },
+    degraded: { semantic_available: !!e.signals.semantic, acoustic_available: !!e.signals.acoustic },
+    timeline: [],
+    turns: { caller: [], agent: [] },
+    events: [],
+    features: {},
+    top_factors: [],
+    rationale: '',
+    timings_ms: { decode: 0, vad: 0, features: 0, semantic: null, inference: 0, total: e.latency_ms },
+    meta: { model_version: e.model_version ?? '', git_sha: '', feature_contract: 'fc-1', duration_s: e.duration_s },
+  };
+}
+
+function parseFeedRows(data: unknown): Analysis[] {
+  const arr = Array.isArray(data) ? data : [data];
+  const out: Analysis[] = [];
+  for (const d of arr) {
+    if (d && typeof d === 'object' && 'verdict' in (d as any)) {
+      const r = AnalysisZ.safeParse(d);
+      if (r.success) out.push(r.data);
+      continue;
+    }
+    const r = FeedEventZ.safeParse(d);
+    if (r.success) out.push(feedEventToAnalysis(r.data));
+  }
+  return out;
+}
+
+// GET /feed/analysis/:id returns the backend's retained pipeline::Analysis
+// (turns with channel, events with kind/start/end, features as pairs), not the
+// /analyze superset. Adapt it; fields only /analyze computes (timeline, top
+// factors, rationale) are left empty and labelled as such.
+export function adaptRetained(id: string, raw: any): Analysis {
+  const turns = { caller: [] as [number, number][], agent: [] as [number, number][] };
+  for (const t of raw.turns ?? []) {
+    (t.channel === 0 ? turns.caller : turns.agent).push([t.start, t.end]);
+  }
+  const events: Event[] = (raw.events ?? []).map((e: any) => ({
+    type: (e.kind ?? e.type) as Event['type'],
+    t: e.start ?? e.t,
+    duration: e.duration ?? Math.max(0, (e.end ?? 0) - (e.start ?? 0)),
+  }));
+  const features: Record<string, number> = Array.isArray(raw.features)
+    ? Object.fromEntries(raw.features)
+    : (raw.features ?? {});
+  const sem = raw.semantic ?? {};
+  return {
+    id,
+    verdict: { is_synthetic: raw.verdict.is_synthetic, confidence: raw.verdict.confidence, threshold: SHIPPED_THRESHOLD },
+    signals: {
+      behavioral: { p_synthetic: raw.verdict.p_synthetic },
+      semantic: sem.available ? { invention_score: sem.invention_score, answer_type: sem.answer_type } : null,
+      acoustic: null,
+    },
+    degraded: { semantic_available: !!sem.available, acoustic_available: false },
+    timeline: [],
+    turns,
+    events,
+    features,
+    top_factors: [],
+    rationale: 'Retained analysis: top factors, rationale and the confidence trace are computed only by POST /analyze and are not stored in the feed.',
+    timings_ms: { ...raw.timings_ms, semantic: sem.asr_ms ?? null },
+    meta: { model_version: raw.model_version ?? '', git_sha: '', feature_contract: 'fc-1', duration_s: raw.duration_s },
+    waveform: raw.waveform,
+  };
+}
+
+// Feed: opens WS at /ws, backfills from GET /feed/recent immediately, and falls
+// back to polling /feed/recent every 3s when the socket is closed/errors.
+type FeedListener = (items: Analysis[]) => void;
 export class Feed {
   private ws: WebSocket | null = null;
   private pollingId: number | null = null;
   private listeners: FeedListener[] = [];
   public online = false;
   public lastItems: Analysis[] = [];
-
   constructor(private base = API_BASE) {
+    this.backfill();
     this.openSocket();
   }
-
+  private async backfill() {
+    try {
+      const items = await getFeedRecent();
+      if (items) {
+        const parsed = parseFeedRows(items);
+        if (parsed.length) {
+          this.lastItems = parsed;
+          this.emit(parsed);
+        }
+      }
+    } catch {
+      // silent: polling/WS will retry
+    }
+  }
   private openSocket() {
     try {
-      const proto = typeof (globalThis as any).location !== 'undefined' && (globalThis as any).location.protocol === 'https:' ? 'wss' : 'ws';
+      if (typeof (globalThis as any).WebSocket === 'undefined') {
+        this.startPolling();
+        return;
+      }
+      const proto = typeof (globalThis as any).location !== 'undefined' && (globalThis as any).location.protocol === 'https:' ? 'wss' : 'ws'
       const host = typeof (globalThis as any).location !== 'undefined' ? (globalThis as any).location.host : 'localhost';
       const url = `${proto}://${host}${this.base}/ws`;
       this.ws = new WebSocket(url);
@@ -184,9 +301,12 @@ export class Feed {
       this.ws.onmessage = (ev) => {
         try {
           const data = JSON.parse(ev.data);
-          const parsed = Array.isArray(data) ? data.map((d) => AnalysisZ.parse(d)) : [AnalysisZ.parse(data)];
-          this.lastItems = parsed;
-          this.emit(parsed);
+          const parsed = parseFeedRows(data);
+          if (!parsed.length) return;
+          // a WS frame carries one new event: prepend, newest first, dedupe by id
+          const merged = [...parsed, ...this.lastItems.filter((x) => !parsed.some((p) => p.id === x.id))].slice(0, 500);
+          this.lastItems = merged;
+          this.emit(merged);
         } catch {
           // ignore invalid messages
         }
@@ -203,14 +323,13 @@ export class Feed {
       this.startPolling();
     }
   }
-
   private startPolling() {
     if (this.pollingId) return;
       this.pollingId = (globalThis as any).setInterval(async () => {
       try {
         const items = await getFeedRecent();
         if (items) {
-          const parsed = Array.isArray(items) ? items.map((d) => AnalysisZ.parse(d)) : [];
+          const parsed = parseFeedRows(items);
           this.lastItems = parsed;
           this.emit(parsed);
         }
@@ -219,14 +338,12 @@ export class Feed {
       }
     }, 3000) as any;
   }
-
   private stopPolling() {
     if (this.pollingId) {
       (globalThis as any).clearInterval(this.pollingId);
       this.pollingId = null;
     }
   }
-
   private emit(items: Analysis[]) {
     for (const l of this.listeners) l(items);
   }
