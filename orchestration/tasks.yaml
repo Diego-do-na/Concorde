@@ -2231,3 +2231,41 @@ tasks:
   branch: null
   claimed_at: null
   done_at: null
+- id: T058
+  title: '[Paul] Confirm Model concurrency strategy under real load: Mutex<Model>
+    vs a Session pool (NFR-004 follow-up)'
+  description: 'T022 changed AppState.model from Arc<Model> to Arc<Mutex<Model>> because
+    ort''s Session::run requires &mut self — this was a correctness fix (the old type
+    did not compile against concurrent access at all), not a capacity decision. It
+    serializes only the inference stage (ONNX session.run) across concurrent /detect
+    handlers; decode/VAD/features stay unlocked and run in parallel. Analysis at T022
+    time (no real load test existed yet): at ~50ms/inference (NFR-001 budget) and
+    8 concurrent requests, worst-case queuing for the last request in line is ~8x50ms=400ms,
+    comfortably inside the 1.3s internal budget and the judge''s 30s timeout — but
+    this was never measured against the real exported model or the real run_load.py
+    harness.
+
+
+    When T040''s run_load.py (8 concurrent clients x 10 requests, 180s val clips)
+    actually runs: explicitly check whether the single Mutex<Model> is sufficient
+    (p99 <= 5000ms threshold, per T040''s own DoD) or whether inference-stage queuing
+    under Mutex contention is a measurable contributor to p95/p99. If it is, the identified
+    alternative is a small pool of N Session instances (loaded once at boot, same
+    ONNX file, round-robin or a semaphore-gated checkout) instead of one Mutex-guarded
+    Session — NOT reloading per-request (violates NFR-007 ready<=5s) and NOT one Session
+    per worker thread unbounded (memory/startup cost scales with thread count). Record
+    the finding (Mutex sufficient / pool needed, with numbers) in docs/load-report.md
+    alongside T040''s other results; if a pool turns out to be needed, file that as
+    its own follow-up via add_task.py rather than folding it into T040''s own scope.'
+  scope:
+  - product/api/src/inference/model.rs
+  - product/api/src/state.rs
+  - docs/load-report.md
+  depends_on:
+  - T040
+  suggested_model: sonnet
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
