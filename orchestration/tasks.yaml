@@ -1544,10 +1544,10 @@ tasks:
   depends_on:
   - T022
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T039
+  claimed_at: '2026-09-13T00:50:19+00:00'
   done_at: null
 - id: T040
   title: '[Paul] Concurrency + soak test against the deployment (NFR-004, NFR-006)
