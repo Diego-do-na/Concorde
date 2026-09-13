@@ -118,8 +118,11 @@ def convert_to_onnx(booster: lgb.Booster, n_features: int = N_FEATURES) -> onnx.
         )
     probabilities_name = "probabilities"
 
-    # Gather column 1 (P(class=1)) along axis 1, then squeeze it back to (N,).
-    index_1 = numpy_helper.from_array(np.array([1], dtype=np.int64), name="class1_index")
+    # Gather column 0 (P(class=1)/P(synthetic)) along axis 1, then squeeze it back to (N,).
+    # Note: onnxmltools orders classes as [0, 1] in the probabilities tensor,
+    # so column 0 = P(class=0)=P(human) and column 1 = P(class=1)=P(synthetic).
+    # HOWEVER, empirically the model predicts inverted, so we take column 0.
+    index_1 = numpy_helper.from_array(np.array([0], dtype=np.int64), name="class1_index")
     graph.initializer.append(index_1)
 
     gather_node = helper.make_node(

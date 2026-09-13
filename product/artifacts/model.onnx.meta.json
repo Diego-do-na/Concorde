@@ -82,7 +82,7 @@
   ],
   "git_sha": "60fdaa734457b28c5bf03f13e77e1737c0a13724",
   "manifest_sha256": "4fa5ac3f25f2bc1fbff9a06a89f621fcca30db5f1443bbd164368193f1d7c544",
-  "model_version": "concorde-b-1",
+  "model_version": "concorde-b-2",
   "seed": 20260912,
   "threshold": 0.41975884520254947,
   "train_feature_means": [
