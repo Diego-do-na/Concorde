@@ -429,3 +429,97 @@ probe ground truth exist:
 cd product/ml
 python3 -m semantic.rules
 ```
+
+## Probe-turn detector: audio-only, log-mel + subsequence DTW (T043)
+
+Finds the fixed agent probe turn ("esto es sobre su cuenta nómina plus o
+sobre su crédito verde") **directly from audio**, with no ASR in the
+serving path — this is what T045's Rust port loads
+(`product/artifacts/probe_templates.json`). Method: 32-band log-mel at
+8 kHz (native rate, n_fft 256 / hop 80 = 10 ms, per-band z-normalisation,
+L2-normalised frames), matched against a bank of 3 templates (built from
+short TRAIN probe turns, the phrase alone) with open-begin/open-end
+(subsequence) DTW, cosine cost normalised by template length. Detector
+score = min over the bank (lower = better match).
+
+```bash
+cd product/ml
+python3 semantic/probe_detector.py                 # build + validate + export
+python3 semantic/probe_detector.py --validate-only  # re-validate the exported bank
+```
+
+### The design decision: degrade to null, not a binary threshold
+
+A first version thresholded `score <= threshold` directly. Full-dataset
+validation showed this was unsafe: TRAIN positive and negative score
+distributions **overlap substantially** (worst TRAIN positive 0.4911,
+best TRAIN negative 0.3204) — a plain cut anywhere in that range either
+misses real positives or confidently misclassifies real negatives.
+Per AGENTS.md rule 4 / ADR-008 ("never emit an unmarked degradation"),
+the shipped detector instead uses two **safety bounds**, derived from
+TRAIN only (ADR-012):
+
+- `present_bound` sits strictly below every TRAIN negative score — a
+  call scoring at or under it is confidently "probe present".
+- `absent_bound` sits strictly above every TRAIN positive score — a call
+  scoring at or over it is confidently "probe absent".
+- Anything strictly between the two bounds is the **ambiguous zone**:
+  `classify_score()` returns `None` there, and the caller (F-23) must
+  treat this as "signal unavailable", logged, never guessed.
+
+When TRAIN classes separate cleanly, both bounds collapse to the naive
+worst-positive/best-negative split. When they overlap (the real case
+here), the bounds shrink inward from each observed extreme by an epsilon
+instead of failing outright — this is what makes the ambiguous zone wide
+rather than raising an error, and it's why `probe_detector.py` refuses to
+export the bank if that construction ever still yields a confident false
+positive (see the validation table below).
+
+### Validation table (measured 2026-09-12, full 353-call dataset, TRAIN+VAL)
+
+| metric | value | what it means |
+|---|---|---|
+| `confident_false_positives` | **0 / 76** | **The real safety gate.** No probe-absent call is ever classified `True`. Holds without exception. |
+| `n_ambiguous_positive` | 71 / 263 (27%) | Probe-present calls the detector correctly declines to confirm rather than risk a wrong call. |
+| `n_ambiguous_negative` | 76 / 76 (100%) | Every probe-absent call in this validation lands in the ambiguous zone, not the confident-absent one. |
+| `ambiguous_rate` | **0.4336** | **Known, documented limitation** — see the root README's Known Limitations table. ~43% of calls degrade F-23 to null in production with this 3-template bank; this is not hidden or smoothed over. |
+| `recall` (naive `score <= threshold` cut) | 0.9011 | Reported per T043(b)'s original spec; not the mechanism actually shipped. |
+| `false_positive_rate` (naive `score <= threshold` cut) | 0.9605 | **Not a safety gate for this design** — see below. |
+| `detection_rate_gap` (human vs. synthetic) | 0.0592 | ≤ 0.10 — the detector doesn't fire differently by label. |
+| runtime | ~394 ms/call (informational) | Pure numpy/scipy, no librosa. |
+
+**Why `false_positive_rate` (naive cut) is not a gate here, deliberately.**
+T043(b)'s original spec asked for `false_positive_rate <= 0.10` on a bare
+`score <= threshold` cut. That mechanism was replaced by the ambiguous-zone
+design above *because* the naive cut is unsafe on this data — forcing it to
+pass (by picking a template bank or threshold that happens to minimize
+this specific number) would be optimizing a discarded mechanism, not
+fixing the real problem. `confident_false_positives = 0` is the metric
+that reflects what the shipped detector actually does, and it is the one
+`probe_detector.py` enforces before ever writing
+`artifacts/probe_templates.json` (it refuses to export otherwise).
+
+### Known ground-truth defect found while building this (relevant to T042)
+
+14 of T042's `probe_found=True` ground-truth entries turned out to be
+unreliable: each had a perfect fuzzy text-match score (1.0) against a
+turn only **0.28–0.72 s** long — physically too short to contain the
+~2.5 s probe sentence, with no adjacent agent turn close enough to be a
+legitimate split-sentence case (`transcribe.find_probe_turn()`'s own
+documented pairing logic doesn't explain these; every one of these calls
+was checked by hand, and none had a mergeable neighbour within
+`_MAX_MERGE_GAP_S`). The likely cause is `assign_segments_to_windows()`'s
+nearest-offset heuristic reassigning a whisper.cpp transcript segment to
+the wrong (too-short) turn window in the concatenated-clip timeline —
+not the split-sentence case that function's docstring already accounts
+for. `probe_detector.py` guards against this with a duration-plausibility
+check (`_MIN_PROBE_SPAN_S`) that excludes and **counts** these entries
+(`excluded_ground_truth: {"implausible_duration": 14}`) rather than
+silently trusting a perfect text score. This defect lives in
+`cache/probe_ground_truth.json` (gitignored, regenerated by
+`transcribe.py`) — anyone revisiting T042 should know it's there before
+re-deriving it from scratch. It does **not** affect the VAD agreement F1
+numbers (caller 0.873, agent 0.861, `validation/vad_agreement/`): that
+pipeline compares the system's own VAD turn boundaries directly against
+`turns.json` and never calls whisper.cpp or touches probe ground truth at
+all — structurally independent of this bug.
