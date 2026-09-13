@@ -1902,10 +1902,10 @@ tasks:
   - T038
   - T019
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-cursor-agent
+  branch: task/T046
+  claimed_at: '2026-09-13T02:29:33+00:00'
   done_at: null
 - id: T047
   title: '[Paul] Tiger Data schema 001_init.sql: hypertable + continuous aggregate
