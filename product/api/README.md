@@ -90,3 +90,9 @@ VadParams fields (T011)
 
 Note: T012 (the agreement sweep) may update the Stage-B defaults; `--params` allows experimenting with alternate values.
 
+Behavioral feature extraction (`features/`, T014)
+- Contract: `product/artifacts/feature_contract_fc-1.json` is the single source of truth for the fc-1 feature vector's name/order (§9); `features::FC1_NAMES` and `features::FC1_VERSION` mirror it, and a unit test asserts they match the file byte-for-byte.
+- `features::extract(caller, agent, duration_s) -> [f64; 23]` mirrors `product/ml/features/extract.py::extract` line by line — same half-open `[start, end)` interval convention, the same `±0.15s / 0.4s / 1.0s / 0.5s / 2.0s` thresholds, and the same population-std (`ddof=0`) / `cv = std/mean, 0.0 when mean==0.0` degenerate-input rules. `caller`/`agent` are channel-split turn lists — this system's own VAD output at serving time (ADR-003), or `turns/<id>.json` in the offline pipeline — so neither this function nor its Python counterpart ever sees a channel column. `extract_named()` pairs the same 23 values with `FC1_NAMES` for `/analyze` (ADR-013 — `/detect` never carries this).
+- Split across `latency.rs` (F-01…F-06), `overlap.rs` (F-07…F-13), `morphology.rs` (F-14…F-18), and `balance.rs` (F-19…F-22, where F-21 is the `silence_break_delay_mean`/`_cv` pair) — same grouping as the section comments in `extract.py`.
+- **Any change to this contract creates `fc-2`, requires re-running T015's golden-vector parity test (Rust vs. Python, tolerance 1e-6), and requires a new ONNX export.** Never reorder or add to `FC1_NAMES` casually — a silently reordered vector produces plausible-looking but wrong verdicts with no error raised.
+
