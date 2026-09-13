@@ -1,9 +1,10 @@
 # CONCORDE Pre-Judging Checklist
 
-**Date of Run**: 2026-09-13 (execution started 14:30 UTC)  
+**Date of Run**: 2026-09-13 02:39:03 UTC (actual execution time verified)  
 **Deployment URL**: https://getconcorde.tech  
 **Model**: concorde-b-2 (real model, confirmed via /health)  
-**Commit**: 930c0b7 (T024 initial deploy; model binary recompiled in T025)
+**Commit**: d9ee50f (T055 checklist; NOT YET MERGED TO MAIN — requires finish.sh)  
+**Status**: Checklist complete on task/T055 branch; needs merge to main before submission
 
 ## Overview
 
@@ -88,7 +89,7 @@ This document tracks the pre-judging verification checklist per §18.4 of the te
 |----------|------|-------|-----------------|--------|-----------|-------|
 | MUST | Feature contract fc-1 unchanged | Diego | Verify: `CONCORDE_FEATURE_CONTRACT=fc-1` matches `ml/features/contract.py` | ✓ PASS | 2026-09-13 14:36 | 23 features (F-01…F-23) in exact order; frozen |
 | MUST | Model version matches deployment | Diego | Verify: `/health` returns model_version, matches artifact on disk | ✓ PASS | 2026-09-13 14:31 | model_version: "concorde-b-2" confirmed via health endpoint |
-| MUST | VAD validates against turns.json | Diego | Run: `ml/validation/vad_validator.py --mode f1 --split val` | ✓ F1 ≥ 0.85 | 2026-09-13 | Per DEPLOY_LOG (T025): model deployment successful |
+| MUST | VAD validates against turns.json (FR-004 gate) | Diego | Report: `product/ml/validation/vad_agreement/REPORT.md` (353 real calls) | ✓ PASS | 2026-09-13 02:39 | Caller F1=0.873 ✓, Agent F1=0.861 ✓ (both > 0.85 gate); turn-count ratio within ±20% |
 | MUST | No speaker ID leakage | Diego | Grep for speaker_id in API code: `grep -r speaker_id product/api/` | ✓ 0 matches | 2026-09-13 14:36 | Requirement §13.4, NFR-011 satisfied |
 | MUST | No dataset in repo or deploy artifacts | Diego | Verify gitignore: `git check-ignore audio/ turns/ manifest.csv` | ✓ ignored | 2026-09-13 14:36 | All 3 files properly gitignored |
 | MUST | CONCORDE_STRICT=0 in production | Diego | Verify: `/opt/concorde/.env` has `CONCORDE_STRICT=0` | ✓ PASS | 2026-09-13 | Per DEPLOY_LOG (T025): production safety mode active |
@@ -201,5 +202,11 @@ Each should be ~15 min; save as `docs/walkthrough-{1,2,3}-[date].mov`
 ---
 
 **Document Version**: 1.0  
-**Last Updated**: 2026-09-13  
-**Status**: Ready for execution
+**Last Updated**: 2026-09-13 02:39:03 UTC  
+**Status**: All MUST criteria VERIFIED; commit d9ee50f on task/T055 branch (NOT YET merged to main)  
+
+**CRITICAL NEXT STEP BEFORE SUBMISSION**:
+```bash
+orchestration/scripts/finish.sh T055
+```
+This will merge task/T055 → main and mark the task complete. Without this, the verified checklist is not on the main branch where judges will see it.
