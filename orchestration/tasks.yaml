@@ -1509,11 +1509,11 @@ tasks:
   - T036
   - T037
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T038
   claimed_at: '2026-09-13T02:27:03+00:00'
-  done_at: null
+  done_at: '2026-09-13T02:29:29+00:00'
 - id: T039
   title: '[Paul] Fault-injection suite: every invalid input returns 200 + fallback
     (FR-008, NFR-005, R-11)'
