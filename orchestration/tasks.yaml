@@ -972,11 +972,11 @@ tasks:
   - T008
   - T021
   suggested_model: sonnet
-  status: claimed
+  status: done
   owner: Diego_dona-claude
   branch: task/T022
   claimed_at: '2026-09-13T00:35:21+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:49:21+00:00'
 - id: T023
   title: '[Paul] Caddy + systemd unit + deploy.sh for the Rust binary'
   description: '(a) BUILD — product/deploy/Caddyfile: a site block for the HOSTNAME
