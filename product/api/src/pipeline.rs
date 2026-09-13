@@ -176,17 +176,36 @@ pub async fn analyze_bytes_with_timeout(
     let waveform_obj = waveform::compute(bytes, 50).context("waveform extraction failed")?;
     let total_ms = elapsed_ms(total_start);
 
+    let verdict = Verdict {
+        is_synthetic,
+        confidence,
+        p_synthetic: p_final,
+    };
+
+    // Fire-and-forget Tiger Data event (T048): a non-blocking `try_send`
+    // via a bounded channel, never awaited here -- storage is
+    // observability, not a dependency (§7.2). No-op when
+    // `TIGERDATA_URL` is unset.
+    crate::storage::record(
+        state,
+        crate::storage::DetectionEvent {
+            request_id: None,
+            call_id: None,
+            is_synthetic: verdict.is_synthetic,
+            confidence: verdict.confidence,
+            p_synthetic: verdict.p_synthetic,
+            duration_s,
+            model_version: Some(model_version.clone()),
+        },
+    );
+
     Ok(Analysis {
         duration_s,
         turns: turns.turns,
         turn_counts,
         events,
         features: named_features,
-        verdict: Verdict {
-            is_synthetic,
-            confidence,
-            p_synthetic: p_final,
-        },
+        verdict,
         timings_ms: TimingsMs {
             decode: decode_ms,
             vad: vad_ms,
