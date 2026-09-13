@@ -228,6 +228,39 @@ element-wise within `1e-6` — see `product/api/README.md`'s parity section.
 Max-abs-error-per-feature results are recorded in
 `ml/validation/parity/REPORT.md`.
 
+## Results (T017–T019: model, calibration, metrics report)
+
+`train/train.py` (T017) trains the shipped LightGBM booster on `train`
+only, `train/calibrate.py` (T018) fits Platt calibration and picks the
+threshold on `val`/train-OOF (ADR-012), and `train/report.py` (T019) scores
+that shipped model+threshold on `val` one last time and writes
+[`train/REPORT.md`](train/REPORT.md) — the full breakdown (reliability
+table, confusion matrix, error-by-duration, top-10 importances, CV-vs-val
+gap, anti-self-deception audit) and `data/metrics.json` (gitignored, feeds
+the console exec view). These are the headline numbers the three teammates
+memorise (§18.4):
+
+| Metric | Value | Target |
+|---|---|---|
+| Balanced accuracy (val, shipped threshold) | 0.8466 | Altur's primary metric |
+| TPR_synthetic / TNR_human | 0.8824 / 0.8108 | — |
+| ROC-AUC (val) | 0.9436 | >= 0.90 |
+| Brier (val, after calibration) | 0.0936 | <= 0.12 |
+| EER (val) | 0.1129 | — |
+| ECE (val, after calibration) | 0.0965 | — |
+| CV AUC (train, 5-fold x 3 seeds) vs val AUC gap | 0.9654 vs 0.9436 (gap 0.0218) | — |
+
+Full detail, the anti-self-deception audit paragraph, and the reproduction
+command live in [`train/REPORT.md`](train/REPORT.md).
+
+```bash
+cd product/ml
+python -m train.build_dataset   # T016
+python -m train.train           # T017
+python -m train.calibrate       # T018
+python -m train.report          # T019 -> train/REPORT.md, data/metrics.json
+```
+
 ## ADR-012 deviation: no speaker ID in this dataset
 
 `manifest.csv` has no speaker-identifier column, and the dataset terms
