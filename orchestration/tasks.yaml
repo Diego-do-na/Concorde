@@ -2269,3 +2269,51 @@ tasks:
   branch: null
   claimed_at: null
   done_at: null
+- id: T059
+  title: '[Diego] Run the real train→calibrate→export→deploy chain end-to-end (unblock
+    /detect from all-fallback)'
+  description: 'Diagnosis (approved): the code for training/calibration/ONNX-export/inference-wiring
+    is done and correct (T017/T018/T020/T021/T022 all merged), and a real model WAS
+    trained once with real val metrics (product/ml/train/REPORT.md, T019: balanced
+    accuracy 0.8466) — but that real booster was never persisted as a committed artifact,
+    and the public deployment (T025) only added latency-measurement tooling and placeholder
+    docs without ever running it. Right now GET /health reports model_version:none
+    and every POST to /detect (valid or not) returns only the fallback {is_synthetic:false,
+    confidence:0.50}. This task runs the missing chain for real, in order: (1) Before
+    re-training: ask whoever owns/ran T017/T019 (NC-EC-claude) whether the real product/ml/data/model_lgbm.txt
+    (git_sha 5d539a8f..., seed 20260912) is still available locally — reuse it if
+    so; only re-run product/ml/train/train.py (same CONCORDE_TRAIN_SEED=20260912)
+    from scratch if it is truly gone. (2) Re-run product/ml/train/calibrate.py on
+    that booster (expected shipped threshold ~0.4198, confirm it still matches T018/T019''s
+    numbers; investigate and document any drift instead of silently accepting a different
+    value). (3) Run product/ml/export/export_onnx.py against the REAL booster (not
+    the synthetic one T021 used) to produce and commit product/artifacts/model.onnx
+    + product/artifacts/model.onnx.meta.json, bump product/artifacts/CHANGELOG.md.
+    (4) Deploy for real: copy the artifact to /opt/concorde/artifacts/model.onnx on
+    the Vultr server, CONCORDE_MODEL_PATH already correctly set to that path in product/deploy/env.server.template
+    — just verify the server .env matches, systemctl restart concorde-api, then run
+    Altur''s check_endpoint.py against the public URL (https://getconcorde.tech/detect)
+    over the val split to confirm GET /health now reports a real model_version and
+    /detect no longer returns only the flat fallback, and fill product/deploy/DEPLOY_LOG.md''s
+    T025 section and docs/latency-report.md with the real dates/commit/percentiles/metrics
+    (remove the DATE_GOES_HERE/COMMIT_SHA_GOES_HERE/TBD placeholders). This is the
+    single blocking piece between the whole system and giving real verdicts instead
+    of pure fallback — highest priority on the board right now; Cauce has no priority
+    field, so this is enforced by hand: do not let this be auto-claimed by whichever
+    agent''s work.sh/autopilot.sh/fleet.sh happens to run next — Diego is claiming
+    or explicitly assigning it himself.'
+  scope:
+  - product/artifacts/model.onnx
+  - product/artifacts/model.onnx.meta.json
+  - product/artifacts/CHANGELOG.md
+  - product/deploy/DEPLOY_LOG.md
+  - docs/latency-report.md
+  depends_on:
+  - T021
+  - T025
+  suggested_model: opus
+  status: todo
+  owner: null
+  branch: null
+  claimed_at: null
+  done_at: null
