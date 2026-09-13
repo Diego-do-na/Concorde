@@ -1,8 +1,21 @@
 {
-  "processed_24h": 12345,
-  "synthetic_flagged": 42,
-  "latency_ms": { "p50": 180, "p90": 850, "p95": 3200, "p99": 5200 },
-  "degradation_rate": 0.012,
-  "validation": { "roc_auc": 0.918, "detection_recall": 0.85 },
-  "verdicts": { "verified": 11500, "review": 180, "synthetic": 165 }
+  "_source": "Real figures as of 2026-09-13 09:30 UTC. processed_24h/verdicts/degradation from the live feed (GET /feed/recent?limit=500, 160 events since the 09:07 UTC restart; verdict bands per verdictOf: confidence>=0.70); latency from docs/latency-report.md (client-side, val replay); validation from the judge client run on val (docs/latency-report.md, product/deploy/DEPLOY_LOG.md). The semantic layer is disabled in the judged deployment, so every call has one signal shed (degradation_rate = 1.0).",
+  "processed_24h": 160,
+  "synthetic_flagged": 38,
+  "latency_ms": {
+    "p50": 475,
+    "p90": 560,
+    "p95": 568,
+    "p99": 585
+  },
+  "degradation_rate": 1.0,
+  "validation": {
+    "roc_auc": 0.944,
+    "detection_recall": 0.971
+  },
+  "verdicts": {
+    "verified": 35,
+    "review": 87,
+    "synthetic": 38
+  }
 }

@@ -203,6 +203,11 @@ export function feedEventToAnalysis(e: FeedEvent): Analysis & { ts?: number } {
   };
 }
 
+function dedupeById(rows: Analysis[]): Analysis[] {
+  const seen = new Set<string>();
+  return rows.filter((r) => (seen.has(r.id) ? false : (seen.add(r.id), true)));
+}
+
 function parseFeedRows(data: unknown): Analysis[] {
   const arr = Array.isArray(data) ? data : [data];
   const out: Analysis[] = [];
@@ -274,10 +279,12 @@ export class Feed {
     try {
       const items = await getFeedRecent();
       if (items) {
-        const parsed = parseFeedRows(items);
+        const parsed = dedupeById(parseFeedRows(items));
         if (parsed.length) {
-          this.lastItems = parsed;
-          this.emit(parsed);
+          // WS frames may already have arrived: keep them, newest first
+          const merged = dedupeById([...this.lastItems, ...parsed]).slice(0, 500);
+          this.lastItems = merged;
+          this.emit(merged);
         }
       }
     } catch {
@@ -304,7 +311,7 @@ export class Feed {
           const parsed = parseFeedRows(data);
           if (!parsed.length) return;
           // a WS frame carries one new event: prepend, newest first, dedupe by id
-          const merged = [...parsed, ...this.lastItems.filter((x) => !parsed.some((p) => p.id === x.id))].slice(0, 500);
+          const merged = dedupeById([...parsed, ...this.lastItems]).slice(0, 500);
           this.lastItems = merged;
           this.emit(merged);
         } catch {
@@ -329,7 +336,7 @@ export class Feed {
       try {
         const items = await getFeedRecent();
         if (items) {
-          const parsed = parseFeedRows(items);
+          const parsed = dedupeById(parseFeedRows(items));
           this.lastItems = parsed;
           this.emit(parsed);
         }
