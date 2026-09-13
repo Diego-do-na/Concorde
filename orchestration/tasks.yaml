@@ -1997,10 +1997,10 @@ tasks:
   depends_on:
   - T048
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: Diego_dona-claude
+  branch: task/T049
+  claimed_at: '2026-09-13T07:08:10+00:00'
   done_at: null
 - id: T050
   title: '[Néstor] Red-team call assembler + ElevenLabs synthetic-caller clips (unseen
