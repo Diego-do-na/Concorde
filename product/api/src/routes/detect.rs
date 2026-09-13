@@ -57,7 +57,7 @@ mod tests {
         let mut config = Config::from_env();
         config.handler_timeout_ms = 5_000;
         config.strict = false;
-        Arc::new(AppState::new(config))
+        Arc::new(AppState::new(config, None))
     }
 
     fn app() -> Router {

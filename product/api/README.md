@@ -95,4 +95,22 @@ Behavioral feature extraction (`features/`, T014)
 - `features::extract(caller, agent, duration_s) -> [f64; 23]` mirrors `product/ml/features/extract.py::extract` line by line — same half-open `[start, end)` interval convention, the same `±0.15s / 0.4s / 1.0s / 0.5s / 2.0s` thresholds, and the same population-std (`ddof=0`) / `cv = std/mean, 0.0 when mean==0.0` degenerate-input rules. `caller`/`agent` are channel-split turn lists — this system's own VAD output at serving time (ADR-003), or `turns/<id>.json` in the offline pipeline — so neither this function nor its Python counterpart ever sees a channel column. `extract_named()` pairs the same 23 values with `FC1_NAMES` for `/analyze` (ADR-013 — `/detect` never carries this).
 - Split across `latency.rs` (F-01…F-06), `overlap.rs` (F-07…F-13), `morphology.rs` (F-14…F-18), and `balance.rs` (F-19…F-22, where F-21 is the `silence_break_delay_mean`/`_cv` pair) — same grouping as the section comments in `extract.py`.
 - **Any change to this contract creates `fc-2`, requires re-running T015's golden-vector parity test (Rust vs. Python, tolerance 1e-6), and requires a new ONNX export.** Never reorder or add to `FC1_NAMES` casually — a silently reordered vector produces plausible-looking but wrong verdicts with no error raised.
+#
+Model sidecar schema (T021)
+- Models are shipped alongside a JSON "meta" file named `<model>.onnx.meta.json`. The service expects the following fields (exporter T021 must conform):
+  - `model_version` (string)
+  - `feature_contract` (string)
+  - `calibration` (object) with `{ "type": "platt", "a": <float>, "b": <float> }`
+  - `threshold` (float)
+  - `git_sha` (string|null)
+  - `seed` (int|null)
+  - `manifest_sha256` (string|null)
+  - `feature_names` (array of 23 strings)
+  - `train_feature_means` (array of 23 floats)
+  - `train_feature_stds` (array of 23 floats)
+  - `feature_importance` (array of 23 floats)
+  - `direction_sign` (array of 23 ints)
+
+FR-006 (startup abort)
+- On startup the API loads the configured ONNX model and its `<model>.meta.json` sidecar. If `meta.feature_contract != CONCORDE_FEATURE_CONTRACT` or `meta.feature_names != features::FC1_NAMES` the process aborts with a non-zero exit and a clear error log. This prevents silent, dangerous mismatches between the extractor's vector order and the exported model's expectation.
 
