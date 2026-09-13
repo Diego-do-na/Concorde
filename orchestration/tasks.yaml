@@ -851,10 +851,10 @@ tasks:
   depends_on:
   - T018
   suggested_model: sonnet
-  status: todo
-  owner: null
-  branch: null
-  claimed_at: null
+  status: claimed
+  owner: NC-EC-claude
+  branch: task/T019
+  claimed_at: '2026-09-13T00:24:26+00:00'
   done_at: null
 - id: T020
   title: '[Paul] ort integration: load ONNX + meta at boot, contract check, Platt
