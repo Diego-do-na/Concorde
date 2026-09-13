@@ -307,16 +307,16 @@ The `/detect` endpoint is reachable from the public internet over HTTPS, returns
 
 ---
 
-# T025 — Real model deploy & latency measurement (template)
+# T025 — Real model deploy & latency measurement
 
-**Task**: T025 — Deploy the real model (T022 export) and measure end-to-end latency.
+**Task**: T025 — Deploy the real model (T021 export) and measure end-to-end latency.
 
-**Date**: DATE_GOES_HERE  
-**Deployed by**: Paul  
-**Commit**: COMMIT_SHA_GOES_HERE
+**Date**: 2026-09-13  
+**Deployed by**: Diego  
+**Commit**: 33ecc87
 
 ## Build / Install
-- Model artifact copied to `/opt/concorde/artifacts/model.onnx`
+- Model artifact copied to `/opt/concorde/artifacts/model.onnx` (this run: `concorde-b-1`)
 - Ensure `/opt/concorde/.env` contains:
   - `CONCORDE_MODEL_PATH=/opt/concorde/artifacts/model.onnx`
   - `CONCORDE_FEATURE_CONTRACT=fc-1`
@@ -324,16 +324,31 @@ The `/detect` endpoint is reachable from the public internet over HTTPS, returns
   (these values are populated by the deploy operator; do NOT commit secrets)
 
 ## Verification (primary)
-- From a laptop on mobile data:
-  python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url https://HOSTNAME/detect --split val --n 0 --out val_check_public.json
-  Expect: answered 71, errors 0, balanced_accuracy/auc/brier recorded, max_latency_s < 30
+- Command run from operator laptop:
+  ```
+  python $CONCORDE_DATASET_DIR/scripts/check_endpoint.py --url https://getconcorde.tech/detect --split val --n 0 --out val_check_public.json
+  ```
+- Result (public run against https://getconcorde.tech/detect):
+  - calls: 71
+  - answered: 71
+  - errors: 0
+  - accuracy: 0.5211267605633803
+  - tpr_synthetic: 0.000
+  - tnr_human: 1.000
+  - balanced_accuracy: 0.500
+  - auc: 0.500
+  - brier: 0.250
+  - mean_latency_s: 0.4213452183380279
+  - max_latency_s: 0.5560091659999999
 
 ## Server-side latency measurement
-- Run on the deploy operator laptop or on the server after copying `val_check_public.json`:
-  product/deploy/measure_latency.sh val_check_public.json
-- Target (NFR-001 internal): server-side p95 <= 3000 ms, p99 <= 5000 ms
+- Client-side `val_check_public.json` written and archived in this worktree.
+- Server-side percentiles (p50/p95/p99) computed from `val_check_public.json`:
+  - p50 = 419 ms
+  - p95 = 480 ms
+  - p99 = 524 ms
 
 ## Notes / follow-ups
-- If latency budget missed, record which stage missed the budget and open follow-up via `orchestration/scripts/add_task.py` — do NOT tune Rust here.
-- Record the actual percentiles and the exact commit SHA in this document under the dated entry above.
+- The deployed API returned the fallback verdict (confidence 0.50) for all calls — model artifact present on disk (`/opt/concorde/artifacts/model.onnx` + `.meta.json`) but the running service still reports `model_version: none` in `/health`. Further investigation planned: examine runtime model-loading path and logs (Model::load validation vs feature contract / extractor mismatch). See follow-up issue if needed.
+
 

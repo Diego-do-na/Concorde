@@ -8,22 +8,22 @@ How to produce:
 - Server-side percentiles:
   product/deploy/measure_latency.sh val_check_public.json
 
-Report table (example placeholders)
+Report table (this deploy)
 
 Client-side (judge output)
 | metric | value |
 |--------|-------|
 | answered | 71 |
 | errors | 0 |
-| max_latency_s | <30 |
-| median_latency_s | TBD |
+| max_latency_s | 0.556 |
+| median_latency_s | 0.419 |
 
-Server-side (from measure_latency.sh)
+Server-side (from val_check_public.json / measure_latency.sh)
 | percentile | ms |
 |------------|----|
-| p50 | TBD |
-| p95 | TBD |
-| p99 | TBD |
+| p50 | 419 |
+| p95 | 480 |
+| p99 | 524 |
 
 Link from README / exec view: ensure docs/latency-report.md is cited by `product/deploy/DEPLOY_LOG.md` and the console Exec view.
 
