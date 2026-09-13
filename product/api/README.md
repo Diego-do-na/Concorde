@@ -186,6 +186,7 @@ Golden-vector parity (FR-005, T015)
     "features":     {"resp_latency_cv": 0.11, "overlap_count": 3.0, "...": "...(23 total, fc-1 names)"},
     "top_factors":  [{"feature": "resp_latency_cv", "value": 0.11, "direction": "synthetic", "weight": 0.41}, "...(up to 5, weights sum to 1)"],
     "rationale":    "Response latency stayed within CV 0.11 across 12 agent turns (resp_latency_cv, synthetic signal, weight 41%). ...",
+    "waveform":     {"caller": [0.127, 0.456, "...(~3600 for 180s)", 0.234], "agent": [0.0, 0.0, "...", 0.089], "bucket_ms": 50},
     "timings_ms":   {"decode": 61.0, "vad": 240.0, "features": 88.0, "semantic": null, "inference": 7.0, "total": 396.0},
     "meta":         {"model_version": "concorde-dummy-0", "git_sha": "unknown", "feature_contract": "fc-1", "duration_s": 180.0}
   }
@@ -201,6 +202,7 @@ Golden-vector parity (FR-005, T015)
 - `timeline` always has exactly 17 points: 16 evenly spaced truncation times over `(0, duration_s)` (features re-extracted and the model re-scored on the turns as they'd have looked had the call ended at each `t` — cheap tabular inference, no re-decode/re-VAD) plus a 17th point at `t = duration_s` whose `confidence` is `verdict.confidence` itself, not a redundant re-score.
 - `top_factors` ranks all 23 fc-1 features by `|feature_importance_i × z_i|` (`z_i` = the call's feature value normalized against the model sidecar's `train_feature_means`/`train_feature_stds`), keeps the top 5, and renormalizes `weight` so they always sum to 1 (including the all-zero-importance edge case, which splits weight evenly rather than dividing by zero). `direction` is `"synthetic"` when `direction_sign_i × z_i ≥ 0`, else `"human"`.
 - `rationale` is a deterministic template sentence per top-3 factor (`src/analysis/factors.rs` has one phrasing per fc-1 feature name), always naming its own raw feature identifier — e.g. `(resp_latency_cv, synthetic signal, weight 41%)` — so it's always traceable back to `top_factors`.
+- `waveform` is a console-only enrichment (ADR-013) for dual-channel visualization. It contains the peak absolute amplitude in each 50 ms time bucket for both channels (`caller` and `agent`). Each value is in [0, 1] (normalized sample amplitude) rounded to 3 decimals. For a 180 s call, this is ~3600 floats per channel (~7200 total). A 2 s call produces 40 buckets; silence produces all zeros; a −6 dBFS tone has peaks ≈0.5.
 
 Additional HTTP routes
 - `GET /metrics` — returns a JSON object with process-wide counters and per-route latency percentiles (p50/p95/p99). If the request `Accept` header contains `text/plain` the route returns a tiny Prometheus-like exposition instead. Example JSON:
