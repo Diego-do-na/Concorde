@@ -204,6 +204,30 @@ files; it also re-asserts the fc-1 contract (`features/contract.py`)
 before touching anything, so a drifted feature order fails loudly
 instead of silently producing a mislabeled table.
 
+## Golden-vector parity (FR-005, T015)
+
+`ml/features/extract.py` (Python) and `api/src/features/` (Rust, T014) must
+agree bit-for-bit within floating-point tolerance — a silent divergence is
+the single most dangerous defect in this system (AGENTS.md §9). Parity is
+checked on 13 fixed fixtures under `ml/validation/parity/golden/`: 5 human
++ 5 synthetic calls (fixed `anon_id`s, listed in `make_golden.py`, no
+random sampling) plus 3 hand-built degenerate cases (no caller turns, one
+turn per channel, fully-overlapping turns).
+
+```bash
+python product/ml/validation/parity/make_golden.py   # regenerate the golden/ fixtures (needs CONCORDE_DATASET_DIR)
+```
+
+This writes `caller`/`agent`/`duration_s` plus the Python-computed `fc1`
+vector to `golden/<anon_id>.json` (turn intervals only — no audio, so these
+fixtures are safe to commit, AGENTS.md/NFR-011). It is idempotent: re-running
+it against an unchanged dataset produces a byte-identical `golden/`. The
+Rust side (`cargo test --test parity`, from `product/api`) consumes these
+files and asserts its own `features::extract` output matches `fc1`
+element-wise within `1e-6` — see `product/api/README.md`'s parity section.
+Max-abs-error-per-feature results are recorded in
+`ml/validation/parity/REPORT.md`.
+
 ## ADR-012 deviation: no speaker ID in this dataset
 
 `manifest.csv` has no speaker-identifier column, and the dataset terms

@@ -114,3 +114,8 @@ Model sidecar schema (T021)
 FR-006 (startup abort)
 - On startup the API loads the configured ONNX model and its `<model>.meta.json` sidecar. If `meta.feature_contract != CONCORDE_FEATURE_CONTRACT` or `meta.feature_names != features::FC1_NAMES` the process aborts with a non-zero exit and a clear error log. This prevents silent, dangerous mismatches between the extractor's vector order and the exported model's expectation.
 
+Golden-vector parity (FR-005, T015)
+- `cargo test --test parity` (from `product/api`) runs `tests/parity.rs`, which loads every fixture in `product/ml/validation/parity/golden/*.json` (10 real calls + 3 hand-built degenerate cases), re-runs `features::extract` on each fixture's `caller`/`agent`/`duration_s`, and asserts the result matches the fixture's `fc1` (computed by the Python reference extractor) element-wise within `1e-6`, printing the first mismatching feature name on failure.
+- Fixtures are regenerated on the Python side by `python product/ml/validation/parity/make_golden.py` (see `product/ml/README.md`'s parity section) — this Rust test only consumes them, it never regenerates them.
+- Any mismatch is fixed by aligning the Rust extractor to Python, unless Python itself is found to violate §9 — in that case stop and get Diego's sign-off (AGENTS.md) rather than "fixing" the Python side unilaterally.
+
