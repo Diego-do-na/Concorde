@@ -68,27 +68,37 @@ nohup python3 product/api/tests/load/run_load.py soak \
 
 | Threshold | Requirement | Result | Pass/Fail |
 |---|---|---|---|
-| p99 latency (8-way concurrency) | <= 5000 ms | TBD | TBD |
-| Peak RSS during 30-min soak | <= 1.5 GB | TBD | TBD |
-| Non-200 responses (either run) | 0 | TBD | TBD |
+| p99 latency (8-way concurrency) | <= 5000 ms | client 2 951 ms / server 275 ms | PASS |
+| Peak RSS during 30-min soak | <= 1.5 GB | NOT RUN (soak skipped before the freeze; RSS at rest 135 MB from `ps`) | NOT RUN |
+| Non-200 responses (concurrency run) | 0 | 0 / 80 | PASS |
 
 ## Run metadata
 
-- Commit SHA tested: TBD
-- `model_version` (from `/health`): TBD
-- Date/time of run: TBD
-- Local ASR (T045) enabled at test time: TBD — if yes, report count of
+- Commit SHA tested: 8cba6a2 (binary md5 628b6b37e10b88193fff9818e2c8b43c)
+- `model_version` (from `/health`): concorde-b-2
+- Date/time of run: 2026-09-13 09:13 UTC, from a laptop over the public HTTPS path
+- Local ASR (T045) enabled at test time: no (`CONCORDE_SEMANTIC_ENABLED=false`) — n/a for the count of
   `semantic_available=false` responses attributable to the
   `CONCORDE_ASR_MAX_CONCURRENT` semaphore (T045/env.server.template).
 
 ## Concurrency results
 
-TBD — paste `docs/load-report-concurrency.json` summary here once run.
+`docs/load-report-concurrency.json` (8 clients × 10 requests, 185 s val clip `call_8da8b9947630`, 5.9 MB WAV / 7.9 MB JSON body each):
+
+| metric | value |
+|---|---|
+| total requests | 80 |
+| wall time | 13.9 s (≈5.8 req/s sustained) |
+| client-side p50 / p95 / p99 | 972 / 2 285 / 2 951 ms (includes ~8 MB upload per request from the laptop) |
+| server-side p50 / p95 / p99 (`/metrics`, detect route, after) | 201 / 258 / 275 ms |
+| server-side before the run (5 sequential calls) | 156 / 231 / 231 ms |
+| non-200 | 0 |
+
+Interpretation: under 8-way concurrency the server-side detect latency rose from ~156 ms to ~201 ms p50 (the `Mutex<Model>` serialises only the ~0.2 ms ONNX call; decode/VAD/features run in parallel on 2 vCPU), i.e. queuing is a small fraction of the client-observed latency, which is dominated by the upload. Thresholds NFR-004 met with >15× margin.
 
 ## Soak results
 
-TBD — paste `docs/load-soak.jsonl` / `docs/load-soak-rss.jsonl` summary here
-once run.
+NOT RUN. The 30-minute 4 req/s soak was deliberately skipped before the 06:00 CST freeze to avoid loading the judged endpoint for half an hour; NFR-006 (RSS <= 1.5 GB) is therefore not evidenced by a soak. Observed RSS after 71-call val runs and the 80-request concurrency run: ~135 MB.
 
 ## Follow-ups
 
@@ -162,9 +172,9 @@ Confirmed by reading `product/api/src/state.rs` and
 
 | Question | Answer |
 |---|---|
-| Mutex sufficient or pool needed? | **TBD — depends on T059 + a real T040 run** |
-| Measured 8-way p99 | TBD |
-| Queuing time vs total latency (from `/metrics`) | TBD |
+| Mutex sufficient or pool needed? | **Mutex sufficient** (measured 2026-09-13: server p99 275 ms under 8-way) |
+| Measured 8-way p99 | client 2 951 ms / server 275 ms |
+| Queuing time vs total latency (from `/metrics`) | server p50 +45 ms vs sequential; upload dominates client latency |
 
 Next step once T059 lands and T040's concurrency run is re-executed against
 the real model: fill in the verdict row above from the actual
