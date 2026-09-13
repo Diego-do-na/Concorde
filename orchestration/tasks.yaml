@@ -1609,11 +1609,11 @@ tasks:
   depends_on:
   - T025
   suggested_model: haiku
-  status: claimed
+  status: done
   owner: Diego_dona-cursor-agent
   branch: task/T041
   claimed_at: '2026-09-13T00:53:30+00:00'
-  done_at: null
+  done_at: '2026-09-13T00:56:16+00:00'
 - id: T042
   title: '[Diego] Local Whisper transcription of the dataset (same whisper.cpp models
     that will serve) + probe ground truth + answer-type rules — background job'
